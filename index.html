@@ -25,20 +25,11 @@
     <!-- 설정 영역 -->
     <section class="panel" id="setup-panel">
       <h2>시험 설정</h2>
-      <div class="form-row">
-        <label for="mode-select">문제 유형</label>
-        <select id="mode-select">
-          <option value="krToJp">한국어 → 일본어 뜻 맞추기</option>
-          <option value="jpToKr">일본어 → 한국어 뜻 맞추기</option>
-          <option value="kanjiToKana">한자 → 히라가나 맞추기</option>
-          <option value="kanaToKanji">히라가나 → 한자 맞추기</option>
-        </select>
-      </div>
 
       <div class="form-row">
         <label>문항 수</label>
         <input type="number" id="question-count" min="5" max="100" value="50" />
-        <small class="hint">기획서 기본은 50문제지만, 테스트용으로 숫자를 바꿔볼 수도 있어.</small>
+        <small class="hint">한 번에 풀고 싶은 문제 수를 정해 주세요. (5~100)</small>
       </div>
 
       <div class="button-row">
@@ -49,9 +40,6 @@
           오답노트로 복습
         </button>
       </div>
-      <p class="note">
-        오답 데이터는 이 브라우저의 <code>localStorage</code>에 저장돼서, 다시 접속해도 유지돼.
-      </p>
     </section>
 
     <!-- 문제 영역 -->

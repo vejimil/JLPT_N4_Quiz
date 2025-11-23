@@ -4,7 +4,7 @@
 const STORAGE_KEY = "nihongorae-jlpt-n4-v1";
 
 let state = {
-  mode: "krToJp", // krToJp | jpToKr | kanjiToKana | kanaToKanji
+  mode: "krToJp", // 이제 실제 출제는 랜덤 모드지만, 상태값은 남겨둠
   questionCount: 50,
   questions: [],
   currentIndex: 0,
@@ -171,7 +171,6 @@ function generateExamQuestions(_modeIgnored, count, wordPool) {
   });
 }
 
-
 // ===== UI 관련 =====
 function showPanel(panelId) {
   document.getElementById("setup-panel").hidden = true;
@@ -324,9 +323,9 @@ function showResult() {
   }
 }
 
-// ===== 시험 시작 함수들 =====
-function startNewExam(mode, fromWrongOnly = false) {
-  state.mode = mode;
+// ===== 시험 시작 함수 =====
+function startNewExam(fromWrongOnly = false) {
+  state.mode = "mixed"; // 이제는 랜덤 출제 모드
   const countInput = document.getElementById("question-count");
   const desiredCount = parseInt(countInput.value, 10) || 50;
 
@@ -342,12 +341,12 @@ function startNewExam(mode, fromWrongOnly = false) {
 
   if (pool.length < 5) {
     alert(
-      `보기 5개를 만들려면 최소 5개의 단어가 필요해.\n현재 단어 수: ${pool.length}\n먼저 vocab.js에 단어를 더 넣어줘!`
+      `보기 5개를 만들려면 최소 5개의 단어가 필요해.\n현재 단어 수: ${pool.length}\n단어 목록을 더 추가한 뒤 다시 시도해 주세요.`
     );
     return;
   }
 
-  state.questions = generateExamQuestions(mode, desiredCount, pool);
+  state.questions = generateExamQuestions(null, desiredCount, pool);
   state.currentIndex = 0;
   state.score = 0;
   state.selectedChoiceIndex = null;
@@ -362,7 +361,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loadGlobalStats();
   updateWhalePanel();
 
-  const modeSelect = document.getElementById("mode-select");
   const startExamBtn = document.getElementById("start-exam-btn");
   const startWrongBtn = document.getElementById("start-wrong-btn");
   const checkAnswerBtn = document.getElementById("check-answer-btn");
@@ -372,13 +370,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const endBtn = document.getElementById("end-btn");
 
   startExamBtn.addEventListener("click", () => {
-    const mode = modeSelect.value;
-    startNewExam(mode, false);
+    startNewExam(false);
   });
 
   startWrongBtn.addEventListener("click", () => {
-    const mode = modeSelect.value;
-    startNewExam(mode, true);
+    startNewExam(true);
   });
 
   checkAnswerBtn.addEventListener("click", checkAnswer);
@@ -389,8 +385,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   reviewWrongBtn.addEventListener("click", () => {
-    const mode = modeSelect.value;
-    startNewExam(mode, true);
+    startNewExam(true);
   });
 
   endBtn.addEventListener("click", () => {

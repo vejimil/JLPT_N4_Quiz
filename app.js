@@ -157,12 +157,20 @@ function buildQuestionForWord(word, mode) {
   };
 }
 
-function generateExamQuestions(mode, count, wordPool) {
+function generateExamQuestions(_modeIgnored, count, wordPool) {
   const pool = wordPool || VOCAB;
   const shuffled = shuffleArray(pool);
   const limited = shuffled.slice(0, Math.min(count, shuffled.length));
-  return limited.map((w) => buildQuestionForWord(w, mode));
+
+  // 네 가지 문제 유형 중에서 랜덤으로 고르기
+  const modes = ["krToJp", "jpToKr", "kanjiToKana", "kanaToKanji"];
+
+  return limited.map((w) => {
+    const randomMode = modes[Math.floor(Math.random() * modes.length)];
+    return buildQuestionForWord(w, randomMode);
+  });
 }
+
 
 // ===== UI 관련 =====
 function showPanel(panelId) {

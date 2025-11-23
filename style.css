@@ -183,6 +183,7 @@ body {
   background: #020617;
   cursor: pointer;
   font-size: 0.9rem;
+  color: #f9fafb;
 }
 
 .choice-btn.selected {

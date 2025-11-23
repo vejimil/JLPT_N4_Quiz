@@ -103,45 +103,90 @@ function buildQuestionForWord(word, mode) {
 
   switch (mode) {
     case "krToJp":
+      // 한국어 → 일본어 (漢字＋かな) 문제
       questionText = `「${word.krMeaning}」에 해당하는 일본어는?`;
       answerText = `${word.jpKanji || word.jpKana}（${word.jpKana}）`;
       poolType = "jp"; // 일본어 표현들
       break;
+
     case "jpToKr":
+      // 일본어 → 한국어 뜻
       questionText = `「${word.jpKanji || word.jpKana}（${word.jpKana}）」의 한국어 뜻은?`;
       answerText = word.krMeaning;
       poolType = "kr";
       break;
+
     case "kanjiToKana":
-      questionText = `한자를 히라가나로 읽으면? 「${word.jpKanji || word.jpKana}」`;
+      // 한자 읽기 (한자가 없는 애는 애초에 이 mode로 안 들어옴)
+      questionText = `한자를 히라가나로 읽으면? 「${word.jpKanji}」`;
       answerText = word.jpKana;
       poolType = "kana";
       break;
+
     case "kanaToKanji":
+      // 히라가나 → 한자 (한자가 없는 애는 애초에 이 mode로 안 들어옴)
       questionText = `히라가나를 한자로 쓰면? 「${word.jpKana}」`;
-      answerText = word.jpKanji || "(한자 없음)";
+      answerText = word.jpKanji; // "(한자 없음)" 사용 안 함
       poolType = "kanji";
       break;
   }
 
-  // 오답 보기 생성
-  const others = VOCAB.filter((w) => w.id !== word.id);
+  // --- 오답 보기 생성용 풀 만들기 ---
+  let others = VOCAB.filter((w) => w.id !== word.id);
+
+  // 1) 한자 보기일 때는, jpKanji 가 있는 애들만 보기 후보로 사용 (한자 없음 제거)
+  if (poolType === "kanji") {
+    others = others.filter((w) => w.jpKanji);
+  }
+
+  // 2) jp / kana 보기일 때는,
+  //    끝 히라가나(어미)가 같은 단어들을 우선적으로 보기로 사용해서
+  //    '어형은 비슷한데 의미만 다른' 전문 문제 느낌 나게 만들기
+  if (poolType === "jp" || poolType === "kana") {
+    const targetKana = word.jpKana;
+    if (targetKana && targetKana.length > 0) {
+      const lastChar = targetKana[targetKana.length - 1];
+
+      // 끝 히라가나가 같은 단어들만 모으기
+      const sameTail = others.filter(
+        (w) => w.jpKana && w.jpKana[w.jpKana.length - 1] === lastChar
+      );
+
+      if (sameTail.length >= 4) {
+        // 4개 이상 있으면, 그냥 이 애들끼리만 보기 구성
+        others = sameTail;
+      } else if (sameTail.length > 0) {
+        // 1~3개면, 얘네를 우선 섞은 뒤 나머지는 다른 애들로 채우기
+        const extra = others.filter((w) => !sameTail.includes(w));
+        others = shuffleArray(sameTail).concat(shuffleArray(extra));
+      }
+      // 하나도 없으면(끝 어미 같은 친구가 없으면) others 를 그냥 그대로 사용
+    }
+  }
+
+  // 최종 보기 4개 뽑기
   const shuffledOthers = shuffleArray(others).slice(0, 4);
+
   const choiceTexts = shuffledOthers.map((w) => {
     switch (poolType) {
       case "jp":
+        // 한자+히라가나
         return `${w.jpKanji || w.jpKana}（${w.jpKana}）`;
       case "kr":
+        // 한국어 뜻
         return w.krMeaning;
       case "kana":
+        // 히라가나
         return w.jpKana;
       case "kanji":
-        return w.jpKanji || "(한자 없음)";
+        // 한자 (한자 없는 애는 아예 후보에서 제거했기 때문에 안전)
+        return w.jpKanji;
       default:
         return "";
     }
   });
 
+  // 정답 추가 후 섞기
   choiceTexts.push(answerText);
   const indices = shuffleArray([0, 1, 2, 3, 4]);
   const finalChoices = indices.map((idx) => choiceTexts[idx]);
@@ -162,11 +207,21 @@ function generateExamQuestions(_modeIgnored, count, wordPool) {
   const shuffled = shuffleArray(pool);
   const limited = shuffled.slice(0, Math.min(count, shuffled.length));
 
-  // 네 가지 문제 유형 중에서 랜덤으로 고르기
-  const modes = ["krToJp", "jpToKr", "kanjiToKana", "kanaToKanji"];
-
   return limited.map((w) => {
-    const randomMode = modes[Math.floor(Math.random() * modes.length)];
+    // 이 단어에 대해 허용되는 문제 유형 목록 만들기
+    const modesForThis = [];
+
+    // 의미 ↔ 일본어 문제는 항상 가능
+    modesForThis.push("krToJp", "jpToKr");
+
+    // 한자가 있는 단어만, 한자 관련 문제(kanjiToKana / kanaToKanji) 출제
+    if (w.jpKanji) {
+      modesForThis.push("kanjiToKana", "kanaToKanji");
+    }
+
+    const randomMode =
+      modesForThis[Math.floor(Math.random() * modesForThis.length)];
+
     return buildQuestionForWord(w, randomMode);
   });
 }

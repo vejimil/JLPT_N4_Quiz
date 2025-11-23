@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>JLPT N4 일본어 단어 퀴즈 | 니혼고래</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>JLPT N4 단어 퀴즈</h1>
+    <div class="whale-panel">
+      <div class="whale-name">니혼고래 🐋</div>
+      <div class="whale-level">Lv. <span id="whale-level">1</span></div>
+      <div class="xp-bar">
+        <div class="xp-fill" id="xp-fill"></div>
+      </div>
+      <div class="whale-message" id="whale-message">
+        일본어 바다로 떠나볼까?
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- 설정 영역 -->
+    <section class="panel" id="setup-panel">
+      <h2>시험 설정</h2>
+      <div class="form-row">
+        <label for="mode-select">문제 유형</label>
+        <select id="mode-select">
+          <option value="krToJp">한국어 → 일본어 뜻 맞추기</option>
+          <option value="jpToKr">일본어 → 한국어 뜻 맞추기</option>
+          <option value="kanjiToKana">한자 → 히라가나 맞추기</option>
+          <option value="kanaToKanji">히라가나 → 한자 맞추기</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>문항 수</label>
+        <input type="number" id="question-count" min="5" max="100" value="50" />
+        <small class="hint">기획서 기본은 50문제지만, 테스트용으로 숫자를 바꿔볼 수도 있어.</small>
+      </div>
+
+      <div class="button-row">
+        <button id="start-exam-btn" class="btn primary">
+          시험 시작
+        </button>
+        <button id="start-wrong-btn" class="btn secondary">
+          오답노트로 복습
+        </button>
+      </div>
+      <p class="note">
+        오답 데이터는 이 브라우저의 <code>localStorage</code>에 저장돼서, 다시 접속해도 유지돼.
+      </p>
+    </section>
+
+    <!-- 문제 영역 -->
+    <section class="panel" id="quiz-panel" hidden>
+      <div class="quiz-header">
+        <div>문제 <span id="current-number">1</span> / <span id="total-number">50</span></div>
+        <div>점수: <span id="current-score">0</span></div>
+      </div>
+
+      <div class="question-text" id="question-text">
+        문제 텍스트
+      </div>
+
+      <div class="choices" id="choices-container">
+        <!-- 보기 버튼이 JS로 들어옴 -->
+      </div>
+
+      <div class="feedback" id="feedback"></div>
+
+      <div class="button-row center">
+        <button id="check-answer-btn" class="btn primary">
+          정답 확인
+        </button>
+        <button id="next-question-btn" class="btn secondary" disabled>
+          다음 문제
+        </button>
+      </div>
+    </section>
+
+    <!-- 결과 영역 -->
+    <section class="panel" id="result-panel" hidden>
+      <h2>시험 결과</h2>
+      <p>
+        점수: <strong><span id="final-score">0</span> / <span id="final-total">0</span></strong>
+      </p>
+      <p id="result-comment"></p>
+
+      <h3>이번 시험에서 틀린 단어</h3>
+      <div id="wrong-list"></div>
+
+      <div class="button-row center">
+        <button id="retry-btn" class="btn primary">새 시험 보기</button>
+        <button id="review-wrong-btn" class="btn secondary">지금까지의 오답 정리하기</button>
+        <button id="end-btn" class="btn">종료하기</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>Made for JLPT N4 단어 연습 · 니혼고래 🐋</small>
+  </footer>
+
+  <script src="vocab.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

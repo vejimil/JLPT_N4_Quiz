@@ -129,8 +129,9 @@ function shuffleArray(arr) {
 }
 
 function getUniqueWrongWords() {
+  const vocab = getCurrentVocab(); // ★ 현재 언어의 단어 목록
   const set = new Set(globalStats.wrongWordIds);
-  return VOCAB.filter((w) => set.has(w.id));
+  return vocab.filter((w) => set.has(w.id));
 }
 
 function getWordById(id) {
@@ -317,6 +318,76 @@ function buildQuestionForWord(word, mode) {
   };
 }
 
+// ===== 프랑스어 문제 생성 =====
+function buildQuestionForWordFr(word) {
+  // mode: frToEn or enToFr
+  const mode = Math.random() < 0.5 ? "frToEn" : "enToFr";
+
+  let questionText = "";
+  let answerText = "";
+  let poolType = "";
+
+  if (mode === "frToEn") {
+    questionText = `프랑스어 「${word.fr}」의 영어 뜻은?`;
+    answerText = word.en;
+    poolType = "en";
+  } else {
+    questionText = `영어 「${word.en}」을(를) 프랑스어로 하면?`;
+    answerText = word.fr;
+    poolType = "fr";
+  }
+
+  // --- 오답 후보 ---
+  let others = VOCAB_FR.filter((w) => w.id !== word.id);
+
+  // 보기 4개 뽑기
+  const shuffled = shuffleArray(others).slice(0, 4);
+
+  const choiceItems = shuffled.map((w) => {
+    if (poolType === "en") return { wordId: w.id, text: w.en };
+    if (poolType === "fr") return { wordId: w.id, text: w.fr };
+  });
+
+  // 정답 포함
+  choiceItems.push({
+    wordId: word.id,
+    text: answerText,
+  });
+
+  // 보기 순서 섞기
+  const idxs = shuffleArray([0, 1, 2, 3, 4]);
+  const finalChoices = [];
+  const finalChoiceWordIds = [];
+
+  idxs.forEach((i) => {
+    const item = choiceItems[i];
+    if (!item) return;
+    finalChoices.push(item.text);
+    finalChoiceWordIds.push(item.wordId);
+  });
+
+  const correctIndex = finalChoiceWordIds.indexOf(word.id);
+
+  return {
+    wordId: word.id,
+    questionText,
+    choices: finalChoices,
+    choiceWordIds: finalChoiceWordIds,
+    correctIndex,
+    mode,
+    answerText,
+  };
+}
+
+// 프랑스어 전용
+function generateExamQuestionsFr(count, pool) {
+  const vocab = pool || VOCAB_FR;
+  const shuffled = shuffleArray(vocab);
+  const limited = shuffled.slice(0, Math.min(count, shuffled.length));
+  return limited.map((w) => buildQuestionForWordFr(w));
+}
+
+
 function generateExamQuestions(_modeIgnored, count, wordPool) {
   const pool = wordPool || VOCAB;
   const shuffled = shuffleArray(pool);
@@ -372,6 +443,15 @@ function setLanguage(lang) {
 
   // TODO: 나중 단계에서 언어별 통계/오답 불러오기 등을 여기서 처리할 수 있음
 }
+
+// ===== 언어별 시험 생성기 매핑 =====
+// 나중에 언어를 더 추가하면 여기만 1줄씩 늘리면 됨
+const EXAM_GENERATORS = {
+  ja: (count, pool) => generateExamQuestions(null, count, pool),
+  fr: (count, pool) => generateExamQuestionsFr(count, pool),
+  // 예: es: (count, pool) => generateExamQuestionsEs(count, pool),
+};
+
 
 
 function renderQuestion() {
@@ -535,11 +615,11 @@ function showResult() {
 
 // ===== 시험 시작 함수 =====
 function startNewExam(fromWrongOnly = false) {
-  state.mode = "mixed"; // 이제는 랜덤 출제 모드
+  state.mode = "mixed";
   const countInput = document.getElementById("question-count");
   const desiredCount = parseInt(countInput.value, 10) || 50;
 
-  let pool = VOCAB;
+  let pool;
   if (fromWrongOnly) {
     const wrongWords = getUniqueWrongWords();
     if (wrongWords.length === 0) {
@@ -547,16 +627,23 @@ function startNewExam(fromWrongOnly = false) {
       return;
     }
     pool = wrongWords;
+  } else {
+    pool = getCurrentVocab(); // ★ 현재 언어의 전체 단어
   }
 
-  if (pool.length < 5) {
+  if (!pool || pool.length < 5) {
     alert(
-      `보기 5개를 만들려면 최소 5개의 단어가 필요해.\n현재 단어 수: ${pool.length}\n단어 목록을 더 추가한 뒤 다시 시도해 주세요.`
+      `보기 5개를 만들려면 최소 5개의 단어가 필요해.\n현재 단어 수: ${pool ? pool.length : 0}\n단어 목록을 더 추가한 뒤 다시 시도해 주세요.`
     );
     return;
   }
 
-  state.questions = generateExamQuestions(null, desiredCount, pool);
+  // 🔥 언어별 시험 생성기 선택
+  const generator =
+    EXAM_GENERATORS[currentLang] || EXAM_GENERATORS.ja; // fallback: 일본어
+
+  state.questions = generator(desiredCount, pool);
+
   state.currentIndex = 0;
   state.score = 0;
   state.selectedChoiceIndex = null;

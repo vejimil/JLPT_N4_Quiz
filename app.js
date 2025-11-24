@@ -207,11 +207,11 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
     // - 영어 → 프랑스(enToFr): 각 보기의 영어 뜻만 추가
     // - 프랑스 → 영어(frToEn): 각 보기의 프랑스어만 추가
     case "enToFr":
-      if (word.en) extraParts.push(word.en);
+      if (word.en) extraParts.push(`뜻: ${word.en}`);
       break;
 
     case "frToEn":
-      if (word.fr) extraParts.push(word.fr);
+      if (word.fr) extraParts.push(`뜻: ${word.fr}`);
       break;
 
     default:

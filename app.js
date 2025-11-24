@@ -44,10 +44,18 @@ function getStorageKey() {
 function getCurrentVocab() {
   // 프랑스어 모드면 VOCAB_FR 사용
   if (currentLang === "fr") {
-    return Array.isArray(window.VOCAB_FR) ? window.VOCAB_FR : [];
+    // VOCAB_FR가 아직 안 만들어졌을 수도 있으니 typeof 체크
+    if (typeof VOCAB_FR !== "undefined" && Array.isArray(VOCAB_FR)) {
+      return VOCAB_FR;
+    }
+    return [];
   }
+
   // 기본: 일본어 VOCAB 사용
-  return Array.isArray(window.VOCAB) ? window.VOCAB : [];
+  if (typeof VOCAB !== "undefined" && Array.isArray(VOCAB)) {
+    return VOCAB;
+  }
+  return [];
 }
 
 
@@ -135,7 +143,8 @@ function getUniqueWrongWords() {
 }
 
 function getWordById(id) {
-  return VOCAB.find((w) => w.id === id);
+  const vocab = getCurrentVocab();
+  return vocab.find((w) => w.id === id);
 }
 
 // 정답 체크 후, 각 보기 버튼에 추가 정보(한자/히라가나/뜻)를 붙이기 위한 함수

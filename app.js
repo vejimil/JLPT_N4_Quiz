@@ -68,20 +68,41 @@ let globalStats = {
 // ===== 로컬스토리지 =====
 function loadGlobalStats() {
   try {
-    const key = getStorageKey();            // ★ 수정
+    const key = getStorageKey();
     const raw = localStorage.getItem(key);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      globalStats = {
-        ...globalStats,
-        ...parsed,
-      };
+
+    const base = {
+      totalQuestions: 0,
+      totalCorrect: 0,
+      wrongWordIds: [],
+    };
+
+    if (!raw) {
+      // 저장된 기록이 없으면 기본값으로 초기화
+      globalStats = base;
+      return;
     }
+
+    const parsed = JSON.parse(raw);
+
+    globalStats = {
+      ...base,
+      ...(parsed && typeof parsed === "object" ? parsed : {}),
+      wrongWordIds:
+        parsed && Array.isArray(parsed.wrongWordIds)
+          ? parsed.wrongWordIds
+          : [],
+    };
   } catch (e) {
-    console.error("load stats error", e);
+    console.error("통계 불러오기 오류", e);
+    globalStats = {
+      totalQuestions: 0,
+      totalCorrect: 0,
+      wrongWordIds: [],
+    };
   }
 }
+
 
 function saveGlobalStats() {
   try {
@@ -158,6 +179,7 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
   const extraParts = [];
 
   switch (mode) {
+    // ===== 일본어 모드들 =====
     case "krToJp":
       // 보기에는 이미 일본어(한자+히라가나)가 나왔으니, 한국어 뜻만 추가
       if (kr) extraParts.push(`뜻: ${kr}`);
@@ -183,6 +205,20 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
       if (kana) extraParts.push(`읽기: ${kana}`);
       if (kr) extraParts.push(`뜻: ${kr}`);
       break;
+
+    // ===== 프랑스어 모드들 =====
+    case "frToEn":
+    case "enToFr": {
+      // VOCAB_FR: { id, fr, en, pos }
+      const fr = word.fr;
+      const en = word.en;
+      const pos = word.pos;
+
+      if (fr) extraParts.push(`FR: ${fr}`);
+      if (en) extraParts.push(`EN: ${en}`);
+      if (pos) extraParts.push(`품사: ${pos}`);
+      break;
+    }
 
     default:
       break;
@@ -669,17 +705,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   langButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const lang = btn.dataset.lang; // data-lang="ja" / "fr"
+      const lang = btn.dataset.lang;
 
       // 버튼 active 토글
       langButtons.forEach((b) => {
         b.classList.toggle("active", b === btn);
       });
 
-      // 언어 상태 변경 + 헤더/캐릭터 갱신
+      // 언어 상태 변경
       setLanguage(lang);
+
+      // ⭐ 언어 바뀌면 그 언어의 오답/통계 다시 불러오기
+      loadGlobalStats();
+
+      // ⭐ 말풍선 패널 업데이트
+      updateWhalePanel();
     });
   });
+
 
   // 초기 언어 세팅 (기본: 일본어)
   setLanguage("ja");

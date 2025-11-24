@@ -94,6 +94,56 @@ function getUniqueWrongWords() {
   return VOCAB.filter((w) => set.has(w.id));
 }
 
+function getWordById(id) {
+  return VOCAB.find((w) => w.id === id);
+}
+
+// 정답 체크 후, 각 보기 버튼에 추가 정보(한자/히라가나/뜻)를 붙이기 위한 함수
+function buildChoiceLabelAfterAnswer(word, mode, baseText) {
+  if (!word) return baseText;
+
+  const hasKanji = word.jpKanji && word.jpKanji !== "(한자 없음)";
+  const kana = word.jpKana;
+  const kr = word.krMeaning;
+
+  const extraParts = [];
+
+  switch (mode) {
+    case "krToJp":
+      // 보기에는 이미 일본어(한자+히라가나)가 나왔으니, 한국어 뜻만 추가
+      if (kr) extraParts.push(`뜻: ${kr}`);
+      break;
+
+    case "jpToKr":
+      // 보기에는 한국어 뜻만 나왔으니, 일본어(한자+히라가나)를 추가
+      if (hasKanji && kana) {
+        extraParts.push(`${word.jpKanji}（${kana}）`);
+      } else if (kana) {
+        extraParts.push(`(${kana})`);
+      }
+      break;
+
+    case "kanjiToKana":
+      // 보기에는 히라가나만 나왔으니, 한자와 한국어 뜻을 추가
+      if (hasKanji) extraParts.push(`한자: ${word.jpKanji}`);
+      if (kr) extraParts.push(`뜻: ${kr}`);
+      break;
+
+    case "kanaToKanji":
+      // 보기에는 한자만 나왔으니, 히라가나와 한국어 뜻을 추가
+      if (kana) extraParts.push(`읽기: ${kana}`);
+      if (kr) extraParts.push(`뜻: ${kr}`);
+      break;
+
+    default:
+      break;
+  }
+
+  if (!extraParts.length) return baseText;
+  return `${baseText} ｜ ${extraParts.join(" / ")}`;
+}
+
+
 // ===== 문제 생성 =====
 function buildQuestionForWord(word, mode) {
   // mode에 따라 질문 / 정답 필드 결정
@@ -136,8 +186,11 @@ function buildQuestionForWord(word, mode) {
 
   // 1) 한자 보기일 때는, jpKanji 가 있는 애들만 보기 후보로 사용 (한자 없음 제거)
   if (poolType === "kanji") {
-    others = others.filter((w) => w.jpKanji);
+    others = others.filter(
+      (w) => w.jpKanji && w.jpKanji !== "(한자 없음)"
+    );
   }
+
 
   // 2) jp / kana 보기일 때는,
   //    끝 히라가나(어미)가 같은 단어들을 우선적으로 보기로 사용해서
@@ -167,35 +220,58 @@ function buildQuestionForWord(word, mode) {
   // 최종 보기 4개 뽑기
   const shuffledOthers = shuffleArray(others).slice(0, 4);
 
-  const choiceTexts = shuffledOthers.map((w) => {
+  // 각 보기별로 (표시 텍스트 + 단어 id)를 함께 기억
+  const choiceItems = shuffledOthers.map((w) => {
+    let text = "";
     switch (poolType) {
       case "jp":
         // 한자+히라가나
-        return `${w.jpKanji || w.jpKana}（${w.jpKana}）`;
+        text = `${w.jpKanji || w.jpKana}（${w.jpKana}）`;
+        break;
       case "kr":
         // 한국어 뜻
-        return w.krMeaning;
+        text = w.krMeaning;
+        break;
       case "kana":
         // 히라가나
-        return w.jpKana;
+        text = w.jpKana;
+        break;
       case "kanji":
         // 한자 (한자 없는 애는 아예 후보에서 제거했기 때문에 안전)
-        return w.jpKanji;
+        text = w.jpKanji;
+        break;
       default:
-        return "";
+        text = "";
     }
+    return { wordId: w.id, text };
   });
 
-  // 정답 추가 후 섞기
-  choiceTexts.push(answerText);
+  // 정답 선택지도 (현재 단어) 추가
+  choiceItems.push({
+    wordId: word.id,
+    text: answerText,
+  });
+
+  // 인덱스를 섞어서 최종 보기/wordId 배열 만들기
   const indices = shuffleArray([0, 1, 2, 3, 4]);
-  const finalChoices = indices.map((idx) => choiceTexts[idx]);
-  const correctIndex = finalChoices.indexOf(answerText);
+  const finalChoices = [];
+  const finalChoiceWordIds = [];
+
+  indices.forEach((idx) => {
+    const item = choiceItems[idx];
+    if (!item) return;
+    finalChoices.push(item.text);
+    finalChoiceWordIds.push(item.wordId);
+  });
+
+  // 정답 인덱스는 word.id 기준으로 결정
+  const correctIndex = finalChoiceWordIds.indexOf(word.id);
 
   return {
     wordId: word.id,
     questionText,
     choices: finalChoices,
+    choiceWordIds: finalChoiceWordIds, // ★ 추가됨
     correctIndex,
     mode,
     answerText,
@@ -215,9 +291,11 @@ function generateExamQuestions(_modeIgnored, count, wordPool) {
     modesForThis.push("krToJp", "jpToKr");
 
     // 한자가 있는 단어만, 한자 관련 문제(kanjiToKana / kanaToKanji) 출제
-    if (w.jpKanji) {
+    // "(한자 없음)" 같은 표시 문자열도 한자가 없는 것으로 취급
+    if (w.jpKanji && w.jpKanji !== "(한자 없음)") {
       modesForThis.push("kanjiToKana", "kanaToKanji");
     }
+
 
     const randomMode =
       modesForThis[Math.floor(Math.random() * modesForThis.length)];
@@ -320,6 +398,22 @@ function checkAnswer() {
     feedbackEl.classList.add("wrong");
     state.thisExamWrong.push(q.wordId);
     globalStats.wrongWordIds.push(q.wordId);
+  }
+
+  // --- 정답 확인 후, 각 보기 옆에 나머지 정보(한자/히라가나/뜻) 표시 ---
+  if (q.choiceWordIds && Array.isArray(q.choiceWordIds)) {
+    buttons.forEach((btn, idx) => {
+      const wordId = q.choiceWordIds[idx];
+      const word = getWordById(wordId);
+      if (!word) return;
+
+      const newLabel = buildChoiceLabelAfterAnswer(
+        word,
+        q.mode,
+        btn.textContent
+      );
+      btn.textContent = newLabel;
+    });
   }
 
   document.getElementById("check-answer-btn").disabled = true;

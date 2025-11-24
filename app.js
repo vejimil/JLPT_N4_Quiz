@@ -60,7 +60,8 @@ let globalStats = {
 // ===== 로컬스토리지 =====
 function loadGlobalStats() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const key = getStorageKey();            // ★ 수정
+    const raw = localStorage.getItem(key);
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
@@ -76,7 +77,8 @@ function loadGlobalStats() {
 
 function saveGlobalStats() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(globalStats));
+    const key = getStorageKey();            // ★ 수정
+    localStorage.setItem(key, JSON.stringify(globalStats));
   } catch (e) {
     console.error("save stats error", e);
   }

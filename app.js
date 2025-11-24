@@ -168,7 +168,7 @@ function getWordById(id) {
   return vocab.find((w) => w.id === id);
 }
 
-// 정답 체크 후, 각 보기 버튼에 추가 정보(한자/히라가나/뜻)를 붙이기 위한 함수
+// 정답 체크 후, 각 보기 버튼에 추가 정보를 붙이기 위한 함수
 function buildChoiceLabelAfterAnswer(word, mode, baseText) {
   if (!word) return baseText;
 
@@ -181,12 +181,10 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
   switch (mode) {
     // ===== 일본어 모드들 =====
     case "krToJp":
-      // 보기에는 이미 일본어(한자+히라가나)가 나왔으니, 한국어 뜻만 추가
       if (kr) extraParts.push(`뜻: ${kr}`);
       break;
 
     case "jpToKr":
-      // 보기에는 한국어 뜻만 나왔으니, 일본어(한자+히라가나)를 추가
       if (hasKanji && kana) {
         extraParts.push(`${word.jpKanji}（${kana}）`);
       } else if (kana) {
@@ -195,30 +193,26 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
       break;
 
     case "kanjiToKana":
-      // 보기에는 히라가나만 나왔으니, 한자와 한국어 뜻을 추가
       if (hasKanji) extraParts.push(`한자: ${word.jpKanji}`);
       if (kr) extraParts.push(`뜻: ${kr}`);
       break;
 
     case "kanaToKanji":
-      // 보기에는 한자만 나왔으니, 히라가나와 한국어 뜻을 추가
       if (kana) extraParts.push(`읽기: ${kana}`);
       if (kr) extraParts.push(`뜻: ${kr}`);
       break;
 
     // ===== 프랑스어 모드들 =====
-    case "frToEn":
-    case "enToFr": {
-      // VOCAB_FR: { id, fr, en, pos }
-      const fr = word.fr;
-      const en = word.en;
-      const pos = word.pos;
-
-      if (fr) extraParts.push(`FR: ${fr}`);
-      if (en) extraParts.push(`EN: ${en}`);
-      if (pos) extraParts.push(`품사: ${pos}`);
+    // 요구사항:
+    // - 영어 → 프랑스(enToFr): 각 보기의 영어 뜻만 추가
+    // - 프랑스 → 영어(frToEn): 각 보기의 프랑스어만 추가
+    case "enToFr":
+      if (word.en) extraParts.push(word.en);
       break;
-    }
+
+    case "frToEn":
+      if (word.fr) extraParts.push(word.fr);
+      break;
 
     default:
       break;

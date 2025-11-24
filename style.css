@@ -238,3 +238,20 @@ body {
     align-items: center;
   }
 }
+
+/* 언어 선택 버튼 */
+.lang-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lang-btn {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+}
+
+.lang-btn.active {
+  background: #0ea5e9;
+  color: #eff6ff;
+}

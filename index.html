@@ -8,9 +8,9 @@
 </head>
 <body>
   <header class="header">
-    <h1>JLPT N4 단어 퀴즈</h1>
+    <h1 id="app-title">JLPT N4 단어 퀴즈</h1>
     <div class="whale-panel">
-      <div class="whale-name">니혼고래 🐋</div>
+      <div class="whale-name" id="character-name">니혼고래 🐋</div>
       <div class="whale-level">Lv. <span id="whale-level">1</span></div>
       <div class="xp-bar">
         <div class="xp-fill" id="xp-fill"></div>
@@ -25,6 +25,28 @@
     <!-- 설정 영역 -->
     <section class="panel" id="setup-panel">
       <h2>시험 설정</h2>
+
+      <!-- 언어 선택 -->
+      <div class="form-row">
+        <label>언어 선택</label>
+        <div class="lang-buttons">
+          <button
+            type="button"
+            class="btn lang-btn active"
+            data-lang="ja"
+          >
+            일본어 (니혼고래 🐋)
+          </button>
+          <button
+            type="button"
+            class="btn lang-btn"
+            data-lang="fr"
+          >
+            프랑스어 (프랑새 🐦)
+          </button>
+        </div>
+        <small class="hint">먼저 퀴즈를 풀 언어를 골라 주세요.</small>
+      </div>
 
       <div class="form-row">
         <label>문항 수</label>
@@ -89,10 +111,12 @@
   </main>
 
   <footer class="footer">
-    <small>Made by vejimil · 니혼고래 🐋</small>
+    <small>Made by vejimil · 니혼고래 🐋 & 프랑새 🐦</small>
   </footer>
 
+
   <script src="vocab.js"></script>
+  <script src="vocab-fr.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,10 +1,30 @@
 // app.js
 
-// ===== 상수 & 상태 =====
-const STORAGE_KEY = "nihongorae-jlpt-n4-v1";
+// ===== 언어 설정 =====
+const LANGS = {
+  ja: {
+    code: "ja",
+    title: "JLPT N4 일본어 단어 퀴즈",
+    characterName: "니혼고래 🐋",
+    initialMessage: "일본어 바다로 떠나볼까?",
+    storageKey: "nihongorae-jlpt-n4-v1",
+  },
+  fr: {
+    code: "fr",
+    title: "프랑스어 단어 퀴즈",
+    characterName: "프랑새 🐦",
+    initialMessage: "프랑스어 숲으로 날아가볼까?",
+    storageKey: "prangsae-fr-v1",
+  },
+};
 
+// 현재 선택된 언어 (기본값: 일본어)
+let currentLang = "ja";
+
+// ===== 상태 =====
 let state = {
-  mode: "krToJp", // 이제 실제 출제는 랜덤 모드지만, 상태값은 남겨둠
+  language: "ja",          // ★ 추가
+  mode: "krToJp",          // 이제 실제 출제는 랜덤 모드지만, 상태값은 남겨둠
   questionCount: 50,
   questions: [],
   currentIndex: 0,
@@ -13,6 +33,23 @@ let state = {
   currentCorrectIndex: null,
   thisExamWrong: [],
 };
+
+// ===== 헬퍼: 현재 언어의 저장 키 =====
+function getStorageKey() {
+  const cfg = LANGS[currentLang] || LANGS.ja;
+  return cfg.storageKey;
+}
+
+// ===== 헬퍼: 현재 언어의 단어 리스트 =====
+function getCurrentVocab() {
+  // 프랑스어 모드면 VOCAB_FR 사용
+  if (currentLang === "fr") {
+    return Array.isArray(window.VOCAB_FR) ? window.VOCAB_FR : [];
+  }
+  // 기본: 일본어 VOCAB 사용
+  return Array.isArray(window.VOCAB) ? window.VOCAB : [];
+}
+
 
 let globalStats = {
   totalQuestions: 0,
@@ -313,6 +350,28 @@ function showPanel(panelId) {
   document.getElementById(panelId).hidden = false;
 }
 
+// ===== 언어 변경 =====
+function setLanguage(lang) {
+  if (!LANGS[lang]) lang = "ja";
+
+  currentLang = lang;
+  state.language = lang;
+
+  const cfg = LANGS[lang];
+
+  // 헤더 텍스트 변경
+  const titleEl = document.getElementById("app-title");
+  const nameEl = document.getElementById("character-name");
+  const msgEl = document.getElementById("whale-message");
+
+  if (titleEl) titleEl.textContent = cfg.title;
+  if (nameEl) nameEl.textContent = cfg.characterName;
+  if (msgEl) msgEl.textContent = cfg.initialMessage;
+
+  // TODO: 나중 단계에서 언어별 통계/오답 불러오기 등을 여기서 처리할 수 있음
+}
+
+
 function renderQuestion() {
   const q = state.questions[state.currentIndex];
   const questionTextEl = document.getElementById("question-text");
@@ -507,6 +566,25 @@ function startNewExam(fromWrongOnly = false) {
 
 // ===== 초기화 =====
 document.addEventListener("DOMContentLoaded", () => {
+  // ===== 언어 버튼 연결 =====
+  const langButtons = document.querySelectorAll(".lang-btn");
+
+  langButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lang = btn.dataset.lang; // data-lang="ja" / "fr"
+
+      // 버튼 active 토글
+      langButtons.forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+
+      // 언어 상태 변경 + 헤더/캐릭터 갱신
+      setLanguage(lang);
+    });
+  });
+
+  // 초기 언어 세팅 (기본: 일본어)
+  setLanguage("ja");
   loadGlobalStats();
   updateWhalePanel();
 

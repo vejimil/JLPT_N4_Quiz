@@ -921,5 +921,3 @@ const VOCAB_ES = [
   { id: 999, es: "amanecer", en: "sunrise", pos: "noun(m)", sample: "El amanecer en la playa es muy bonito." },
   { id: 1000, es: "atardecer", en: "sunset", pos: "noun(m)", sample: "El atardecer pinta el cielo de colores." }
 ];
-
-export { VOCAB_ES };

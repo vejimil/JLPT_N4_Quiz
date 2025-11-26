@@ -751,7 +751,7 @@ function showResult() {
 
   const ratio = state.score / state.questions.length;
   if (ratio === 1) {
-    resultCommentEl.textContent = "완벽해! JLPT N4는 식은 죽 먹기인가?";
+    resultCommentEl.textContent = "완벽해! 식은 죽 먹기인가?";
   } else if (ratio >= 0.8) {
     resultCommentEl.textContent = "꽤 잘하고 있어! 오답만 한 번 더 복습해보자.";
   } else if (ratio >= 0.5) {

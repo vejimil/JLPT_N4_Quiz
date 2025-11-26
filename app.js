@@ -128,9 +128,9 @@ function saveGlobalStats() {
 }
 
 // ===== 니혼고래 레벨 계산 =====
-// 예시: 100문제 맞출 때마다 레벨 +1
+// 예시: 50문제 맞출 때마다 레벨 +1
 function calcLevel(totalCorrect) {
-  return Math.floor(totalCorrect / 100) + 1;
+  return Math.floor(totalCorrect / 50) + 1;
 }
 
 // 경험치 바: 다음 레벨까지 비율
@@ -139,7 +139,30 @@ function calcXpRatio(totalCorrect) {
   return within / 100;
 }
 
-function updateWhalePanel() {
+// ===== 언어별 레벨 메시지 =====
+const LEVEL_MESSAGES = {
+  ja: {
+    1: "기초 단어부터 천천히 같이 가보자!",
+    3: "꽤 열심히 하고 있네? 더 깊은 일본어 바다로~",
+    6: "니혼고래가 진화했다! JLPT가 보여!",
+    max: "전설의 고래… 일본어 바다의 지배자?!"
+  },
+  fr: {
+    1: "기초부터 차근차근! 프랑새와 함께 날아보자!",
+    3: "점점 더 높이 나는 중! 발음도 감 잡혔어!",
+    6: "프랑새가 진화했다! 불어 숲의 정복자?",
+    max: "전설의 조류… 프랑스어 왕!"
+  },
+  es: {
+    1: "Hola! 기초부터 천천히 시작해볼까?",
+    3: "단어력이 꽤 올랐어! 에스파냐옹도 신났어!",
+    6: "¡Increíble! 스페인어가 입에 붙기 시작했어!",
+    max: "전설의 고양이… 스페인어 산의 지배자!"
+  }
+};
+
+
+function updateCharacterPanel() {
   const levelSpan = document.getElementById("whale-level");
   const xpFill = document.getElementById("xp-fill");
   const msgEl = document.getElementById("whale-message");
@@ -150,15 +173,17 @@ function updateWhalePanel() {
   levelSpan.textContent = level;
   xpFill.style.width = `${Math.round(ratio * 100)}%`;
 
-  if (level === 1) {
-    msgEl.textContent = "기초 단어부터 천천히 같이 가보자!";
-  } else if (level <= 3) {
-    msgEl.textContent = "꽤 열심히 하고 있네? 더 깊은 일본어 바다로~";
-  } else if (level <= 6) {
-    msgEl.textContent = "니혼고래가 진화했다! JLPT가 보여!";
-  } else {
-    msgEl.textContent = "전설의 고래… 일본어 바다의 지배자?!";
+  const msgPack = LEVEL_MESSAGES[currentLang];
+
+  if (!msgPack) {
+    msgEl.textContent = "";
+    return;
   }
+
+  if (level === 1) msgEl.textContent = msgPack[1];
+  else if (level <= 3) msgEl.textContent = msgPack[3];
+  else if (level <= 6) msgEl.textContent = msgPack[6];
+  else msgEl.textContent = msgPack.max;
 }
 
 // ===== 유틸 =====
@@ -700,7 +725,7 @@ function checkAnswer() {
   document.getElementById("check-answer-btn").disabled = true;
   document.getElementById("next-question-btn").disabled = false;
   saveGlobalStats();
-  updateWhalePanel();
+  updateCharacterPanel();
   updateScoreDisplay();
 }
 
@@ -814,7 +839,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadGlobalStats();
 
       // ⭐ 말풍선 패널 업데이트
-      updateWhalePanel();
+      updateCharacterPanel();
     });
   });
 
@@ -822,7 +847,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 초기 언어 세팅 (기본: 일본어)
   setLanguage("ja");
   loadGlobalStats();
-  updateWhalePanel();
+  updateCharacterPanel();
 
   const startExamBtn = document.getElementById("start-exam-btn");
   const startWrongBtn = document.getElementById("start-wrong-btn");

@@ -16,6 +16,13 @@ const LANGS = {
     initialMessage: "프랑스어 숲으로 날아가볼까?",
     storageKey: "prangsae-fr-v1",
   },
+  es: {
+    code: "es",
+    title: "스페인어 단어 퀴즈",
+    characterName: "에스파냐옹 🐱",
+    initialMessage: "스페인어 산으로 뛰어가볼까?",
+    storageKey: "espanyao-es-v1",
+  },
 };
 
 // 현재 선택된 언어 (기본값: 일본어)
@@ -42,11 +49,18 @@ function getStorageKey() {
 
 // ===== 헬퍼: 현재 언어의 단어 리스트 =====
 function getCurrentVocab() {
-  // 프랑스어 모드면 VOCAB_FR 사용
+  // 프랑스어 모드
   if (currentLang === "fr") {
-    // VOCAB_FR가 아직 안 만들어졌을 수도 있으니 typeof 체크
     if (typeof VOCAB_FR !== "undefined" && Array.isArray(VOCAB_FR)) {
       return VOCAB_FR;
+    }
+    return [];
+  }
+
+  // 스페인어 모드
+  if (currentLang === "es") {
+    if (typeof VOCAB_ES !== "undefined" && Array.isArray(VOCAB_ES)) {
+      return VOCAB_ES;
     }
     return [];
   }
@@ -203,7 +217,6 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
       break;
 
     // ===== 프랑스어 모드들 =====
-    // 요구사항:
     // - 영어 → 프랑스(enToFr): 각 보기의 영어 뜻만 추가
     // - 프랑스 → 영어(frToEn): 각 보기의 프랑스어만 추가
     case "enToFr":
@@ -212,6 +225,17 @@ function buildChoiceLabelAfterAnswer(word, mode, baseText) {
 
     case "frToEn":
       if (word.fr) extraParts.push(`뜻: ${word.fr}`);
+      break;
+
+    // ===== 스페인어 모드들 =====
+    // - 영어 → 스페인어(enToEs): 각 보기의 영어 뜻만 추가
+    // - 스페인어 → 영어(esToEn): 각 보기의 스페인어만 추가
+    case "enToEs":
+      if (word.en) extraParts.push(`뜻: ${word.en}`);
+      break;
+
+    case "esToEn":
+      if (word.es) extraParts.push(`뜻: ${word.es}`);
       break;
 
     default:
@@ -418,6 +442,82 @@ function buildQuestionForWordFr(word) {
   };
 }
 
+// ===== 스페인어 문제 생성 =====
+function buildQuestionForWordEs(word) {
+  // mode: esToEn or enToEs (프랑스어와 동일한 구조)
+  const mode = Math.random() < 0.5 ? "esToEn" : "enToEs";
+
+  let questionText = "";
+  let answerText = "";
+  let poolType = "";
+
+  if (mode === "esToEn") {
+    questionText = `스페인어 「${word.es}」의 영어 뜻은?`;
+    answerText = word.en;
+    poolType = "en";
+  } else {
+    questionText = `영어 「${word.en}」을(를) 스페인어로 하면?`;
+    answerText = word.es;
+    poolType = "es";
+  }
+
+  // --- 오답 후보 (전체 스페인어 단어장에서 가져오기) ---
+  let others = [];
+  if (typeof VOCAB_ES !== "undefined" && Array.isArray(VOCAB_ES)) {
+    others = VOCAB_ES.filter((w) => w.id !== word.id);
+  }
+
+  // 보기 4개 뽑기
+  const shuffled = shuffleArray(others).slice(0, 4);
+
+  const choiceItems = shuffled
+    .map((w) => {
+      if (poolType === "en") return { wordId: w.id, text: w.en };
+      if (poolType === "es") return { wordId: w.id, text: w.es };
+      return null;
+    })
+    .filter(Boolean);
+
+  // 정답 포함
+  choiceItems.push({
+    wordId: word.id,
+    text: answerText,
+  });
+
+  // 보기 순서 섞기
+  const idxs = shuffleArray([0, 1, 2, 3, 4]);
+  const finalChoices = [];
+  const finalChoiceWordIds = [];
+
+  idxs.forEach((i) => {
+    const item = choiceItems[i];
+    if (!item) return;
+    finalChoices.push(item.text);
+    finalChoiceWordIds.push(item.wordId);
+  });
+
+  const correctIndex = finalChoiceWordIds.indexOf(word.id);
+
+  return {
+    wordId: word.id,
+    questionText,
+    choices: finalChoices,
+    choiceWordIds: finalChoiceWordIds,
+    correctIndex,
+    mode,
+    answerText,
+  };
+}
+
+// 스페인어 전용
+function generateExamQuestionsEs(count, pool) {
+  const vocab = pool || VOCAB_ES;
+  const shuffled = shuffleArray(vocab);
+  const limited = shuffled.slice(0, Math.min(count, shuffled.length));
+  return limited.map((w) => buildQuestionForWordEs(w));
+}
+
+
 // 프랑스어 전용
 function generateExamQuestionsFr(count, pool) {
   const vocab = pool || VOCAB_FR;
@@ -488,7 +588,8 @@ function setLanguage(lang) {
 const EXAM_GENERATORS = {
   ja: (count, pool) => generateExamQuestions(null, count, pool),
   fr: (count, pool) => generateExamQuestionsFr(count, pool),
-  // 예: es: (count, pool) => generateExamQuestionsEs(count, pool),
+  es: (count, pool) => generateExamQuestionsEs(count, pool),
+  // 예: kr: (count, pool) => generateExamQuestionsKr(count, pool),
 };
 
 

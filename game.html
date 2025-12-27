@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The World of Words - Game</title>
+  <link rel="stylesheet" href="game.css" />
+</head>
+<body>
+  <main class="screen" role="main" aria-label="Game start screen">
+    <!-- Backgrounds (swap by orientation) -->
+    <img class="bg bg-desktop" src="assets/world_of_words_game_Background_For_Desktop.png" alt="" aria-hidden="true" />
+    <img class="bg bg-mobile" src="assets/world_of_words_game_Background_For_Mobile.png" alt="" aria-hidden="true" />
+
+    <!-- Back -->
+    <button class="img-btn back" id="backBtn" type="button" aria-label="Back">
+      <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
+      <img class="img-btn__label" src="assets/BACK.png" alt="BACK" />
+    </button>
+
+    <!-- Title -->
+    <section class="title" aria-label="Title">
+      <img class="title__top" src="assets/The_World_Of_Words.png" alt="The World of Words" />
+      <img class="title__bottom" src="assets/Game.png" alt="Game" />
+    </section>
+
+    <!-- Language buttons -->
+    <nav class="langs" aria-label="Choose language">
+      <button class="img-btn lang" type="button" data-lang="ja" aria-label="Japanese">
+        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
+        <img class="img-btn__label" src="assets/Japanese.png" alt="日本語" />
+      </button>
+
+      <button class="img-btn lang" type="button" data-lang="fr" aria-label="French">
+        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
+        <img class="img-btn__label" src="assets/French.png" alt="Français" />
+      </button>
+
+      <button class="img-btn lang" type="button" data-lang="es" aria-label="Spanish">
+        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
+        <img class="img-btn__label" src="assets/Spanish.png" alt="Español" />
+      </button>
+    </nav>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

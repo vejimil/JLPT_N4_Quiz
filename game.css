@@ -30,6 +30,8 @@ img {
 .bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .bg__img {
@@ -43,6 +45,7 @@ img {
 .ui {
   position: absolute;
   inset: 0;
+  z-index: 2; 
 }
 
 /* Base pixel-art button */

@@ -1,11 +1,17 @@
 html, body {
+  font-family: "Press Start 2P", system-ui, sans-serif !important;
+}
+
+html, body {
   margin: 0;
   padding: 0;
   height: 100%;
 }
 
 #game-start {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+
   position: relative;
 
   /* ✅ iOS 안전영역 포함 */
@@ -22,6 +28,7 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
 
   font-family: "Press Start 2P", system-ui, sans-serif;
 }
@@ -62,10 +69,9 @@ html, body {
 
 
 .title-wrap {
-  margin-top: 110px;  /* BACK 버튼 아래로 내려오게 */
+  margin-top: 0;
   text-align: center;
 }
-
 
 .title-line1 {
   font-size: clamp(34px, 5vw, 84px);
@@ -101,19 +107,34 @@ html, body {
   width: 100%;
 }
 
-/* 일단 텍스트 버튼. 나중에 PNG로 교체 가능 */
 .lang-btn {
-  min-width: 240px;
+  width: 240px;
   height: 72px;
-  padding: 0 20px;
-  border-radius: 14px;
-  border: 3px solid rgba(0,0,0,0.35);
-  background: rgba(35, 39, 53, 0.92);
-  color: #fff;
-  font-size: 28px;
-  font-weight: 900;
+  padding: 0;
+  border: 0;
+  background: url("assets/Button.png") center/contain no-repeat;
   cursor: pointer;
+
+  display: grid;
+  place-items: center;
 }
+
+.lang-btn span {
+  font-family: "Press Start 2P", system-ui, sans-serif;
+  font-size: 22px;
+  color: #f2f2f2;
+  letter-spacing: 1px;
+
+  text-shadow:
+    0 2px 0 rgba(0,0,0,0.55),
+    2px 0 0 rgba(0,0,0,0.45),
+    -2px 0 0 rgba(0,0,0,0.45);
+}
+
+.lang-btn:active {
+  transform: translateY(2px);
+}
+
 
 .lang-btn:active {
   transform: translateY(2px);
@@ -133,9 +154,11 @@ html, body {
 
   .lang-btn {
     width: min(320px, 86vw);
-    min-width: unset;
     height: 64px;
-    font-size: 22px;
+  }
+
+  .lang-btn span {
+    font-size: 18px;
   }
 
   .img-btn {

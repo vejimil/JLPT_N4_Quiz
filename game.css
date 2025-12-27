@@ -1,16 +1,31 @@
-/* 화면 전체 배경 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
 #game-start {
   min-height: 100vh;
   position: relative;
-  display: block;
 
-  /* 배경 이미지 */
+  /* ✅ iOS 안전영역 포함 */
+  padding: calc(24px + env(safe-area-inset-top))
+           calc(16px + env(safe-area-inset-right))
+           calc(24px + env(safe-area-inset-bottom))
+           calc(16px + env(safe-area-inset-left));
+  box-sizing: border-box;
+
+  /* ✅ 상대경로 유지 (지금 game.css에 맞춰서) */
   background: url("assets/world of words game Background.png") center/cover no-repeat;
 
-  /* 바깥 여백 */
-  padding: 32px;
-  box-sizing: border-box;
+  /* ✅ 모바일에서도 요소가 안정적으로 배치되도록 flex로 전환 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  font-family: "Press Start 2P", system-ui, sans-serif;
 }
+
 
 /* BACK 이미지 버튼 */
 .img-btn {
@@ -28,18 +43,29 @@
   left: 28px;
 
   background: url("assets/Button.png") center/contain no-repeat;
+
+  display: grid;
+  place-items: center;
 }
 
-/* 타이틀 텍스트 (픽셀 느낌은 폰트에 따라 달라서, 일단 스타일만 잡음) */
-.title-wrap {
-  position: absolute;
-  top: 160px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  color: #fff;
-  text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+#back-btn::after {
+  content: "BACK";
+  color: #f2f2f2;
+  font-size: 22px;
+  letter-spacing: 1px;
+
+  text-shadow:
+    0 2px 0 rgba(0,0,0,0.55),
+    2px 0 0 rgba(0,0,0,0.45),
+    -2px 0 0 rgba(0,0,0,0.45);
 }
+
+
+.title-wrap {
+  margin-top: 110px;  /* BACK 버튼 아래로 내려오게 */
+  text-align: center;
+}
+
 
 .title-line1 {
   font-size: clamp(34px, 5vw, 84px);
@@ -52,15 +78,27 @@
   font-size: clamp(30px, 4vw, 72px);
   font-weight: 900;
 }
+ 
+.title-line1,
+.title-line2 {
+  color: #ffffff;
+
+  text-shadow:
+    0 4px 0 rgba(0,0,0,0.45),
+    3px 0 0 rgba(0,0,0,0.35),
+    -3px 0 0 rgba(0,0,0,0.35),
+    0 -3px 0 rgba(0,0,0,0.35);
+}
+
 
 /* 언어 버튼 배치 */
 .lang-row {
-  position: absolute;
-  left: 50%;
-  bottom: 62px;
-  transform: translateX(-50%);
+  margin-top: auto;     /* 아래로 밀기 */
+  margin-bottom: 18px;
   display: flex;
-  gap: 28px;
+  gap: 18px;
+  justify-content: center;
+  width: 100%;
 }
 
 /* 일단 텍스트 버튼. 나중에 PNG로 교체 가능 */
@@ -79,4 +117,29 @@
 
 .lang-btn:active {
   transform: translateY(2px);
+}
+
+@media (max-width: 720px) {
+  .title-wrap {
+    margin-top: 120px;
+  }
+
+  .lang-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .lang-btn {
+    width: min(320px, 86vw);
+    min-width: unset;
+    height: 64px;
+    font-size: 22px;
+  }
+
+  .img-btn {
+    width: 150px;
+    height: 62px;
+  }
 }

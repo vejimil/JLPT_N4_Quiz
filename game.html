@@ -12,17 +12,20 @@
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --safe-left: env(safe-area-inset-left, 0px);
 
-      --ui-pad-x: clamp(12px, 2.2vw, 24px);
-      --ui-pad-y: clamp(12px, 2.2vh, 24px);
+      /* overall padding (slightly smaller) */
+      --ui-pad-x: clamp(10px, 2vw, 20px);
+      --ui-pad-y: clamp(10px, 2vh, 20px);
 
-      --title-gap: clamp(6px, 1.2vh, 14px);
+      --title-gap: clamp(6px, 1vh, 12px);
 
-      --btn-gap: clamp(14px, 2.2vh, 22px);
-      --btn-w: clamp(240px, 58vw, 360px);
-      --btn-h: clamp(64px, 10vh, 90px);
+      /* buttons (slightly smaller) */
+      --btn-gap: clamp(12px, 1.8vh, 18px);
+      --btn-w: clamp(210px, 52vw, 330px);
+      --btn-h: clamp(56px, 8.6vh, 80px);
 
-      --back-w: clamp(140px, 20vw, 210px);
-      --back-h: clamp(48px, 8vh, 70px);
+      /* back (slightly smaller) */
+      --back-w: clamp(120px, 16vw, 180px);
+      --back-h: clamp(40px, 6.6vh, 58px);
     }
 
     /* Prevent scrolling at all costs */
@@ -52,7 +55,7 @@
       overflow: hidden;
     }
 
-    /* Background: only ONE is chosen by <picture> */
+    /* Background: desktop only (no switching) */
     .bg {
       position: absolute;
       inset: 0;
@@ -81,6 +84,7 @@
       top: calc(var(--ui-pad-y) + var(--safe-top));
       left: calc(var(--ui-pad-x) + var(--safe-left));
       pointer-events: auto;
+      z-index: 10;
     }
 
     .pix-btn{
@@ -116,15 +120,17 @@
       top: 50%;
       transform: translate(-50%, -50%);
       width: auto;
-      height: 52%;
+      height: 48%;
       max-width: 78%;
     }
 
-    /* Title */
+    /* Title (start BELOW back button to avoid overlap) */
     .title{
       position: absolute;
       left: 50%;
-      top: calc(var(--ui-pad-y) + var(--safe-top) + clamp(34px, 6vh, 90px));
+      top: calc(
+        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + clamp(14px, 2vh, 26px)
+      );
       transform: translateX(-50%);
       display: flex;
       flex-direction: column;
@@ -132,14 +138,15 @@
       gap: var(--title-gap);
       pointer-events: none;
       text-align: center;
+      z-index: 5;
     }
 
     .title .line1{
-      width: min(92vw, 920px);
+      width: min(88vw, 820px);
       height: auto;
     }
     .title .line2{
-      width: min(70vw, 420px);
+      width: min(60vw, 360px);
       height: auto;
     }
 
@@ -147,13 +154,14 @@
     .langs{
       position: absolute;
       left: 50%;
-      top: 64%;
+      top: 67%;
       transform: translate(-50%, -50%);
       display: flex;
       flex-direction: column; /* mobile default */
       align-items: center;
       gap: var(--btn-gap);
       pointer-events: auto;
+      z-index: 6;
     }
 
     .lang-btn{
@@ -188,33 +196,36 @@
       top: 50%;
       transform: translate(-50%, -50%);
       width: auto;
-      height: 55%;
+      height: 50%;
       max-width: 82%;
     }
 
     /* Desktop / landscape: row buttons like screenshot */
     @media (min-aspect-ratio: 4/3){
       :root{
-        --btn-w: clamp(240px, 22vw, 320px);
-        --btn-h: clamp(66px, 8vh, 84px);
+        --btn-w: clamp(210px, 20vw, 290px);
+        --btn-h: clamp(56px, 7.2vh, 74px);
       }
       .langs{
         flex-direction: row;
-        top: 72%;
-        gap: clamp(18px, 3.2vw, 40px);
+        top: 74%;
+        gap: clamp(16px, 3vw, 34px);
       }
-      .title{
-        top: calc(var(--ui-pad-y) + var(--safe-top) + clamp(28px, 5vh, 70px));
-      }
+      .title .line1{ width: min(78vw, 920px); }
+      .title .line2{ width: min(46vw, 380px); }
     }
 
     /* Very small phones: keep within screen */
     @media (max-width: 360px){
       :root{
-        --btn-w: clamp(210px, 78vw, 280px);
-        --btn-h: clamp(58px, 10vh, 78px);
+        --btn-w: clamp(200px, 76vw, 270px);
+        --btn-h: clamp(54px, 9vh, 72px);
+        --back-w: clamp(110px, 42vw, 160px);
+        --back-h: clamp(38px, 6.2vh, 54px);
       }
-      .langs{ top: 66%; }
+      .langs{ top: 69%; }
+      .title .line1{ width: min(92vw, 760px); }
+      .title .line2{ width: min(66vw, 340px); }
     }
 
     /* Toast */
@@ -232,6 +243,7 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 20;
     }
     .toast.show{
       opacity: 1;
@@ -242,12 +254,8 @@
 
 <body>
   <div class="stage">
-    <picture>
-      <!-- Portrait first (mobile) -->
-      <source media="(orientation: portrait)" srcset="assets/world_of_words_game_Background_For_Mobile.png" />
-      <!-- Landscape fallback (desktop) -->
-      <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" />
-    </picture>
+    <!-- Desktop background ONLY (per request) -->
+    <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" />
 
     <div class="ui">
       <div class="back-wrap">
@@ -286,7 +294,6 @@
   <script>
     const backBtn = document.getElementById('backBtn');
     backBtn.addEventListener('click', () => {
-      // Always go back to index.html at root
       window.location.href = './index.html';
     });
 
@@ -304,7 +311,7 @@
       btn.addEventListener('click', () => {
         const lang = btn.dataset.lang;
         showToast('Coming soon (' + lang + ')');
-        // Later: window.location.href = './play.html?lang=' + lang; (or whatever you decide)
+        // Later: window.location.href = './play.html?lang=' + lang;
       });
     });
   </script>

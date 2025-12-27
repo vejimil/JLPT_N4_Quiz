@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>The World of Words · Game</title>
+    <link rel="stylesheet" href="game.css" />
+  </head>
+  <body>
+    <main class="screen" aria-label="Game language select">
+      <button class="pixel-btn back-btn" type="button" data-action="back" aria-label="Go back">
+        BACK
+      </button>
+
+      <section class="title" aria-label="Title">
+        <h1 class="title-line1">The World of Words</h1>
+        <div class="title-line2" aria-hidden="true">Game</div>
+      </section>
+
+      <nav class="lang" aria-label="Choose language">
+        <button class="pixel-btn lang-btn" type="button" data-lang="ja">日本語</button>
+        <button class="pixel-btn lang-btn" type="button" data-lang="fr">Français</button>
+        <button class="pixel-btn lang-btn" type="button" data-lang="es">Español</button>
+      </nav>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>

@@ -765,26 +765,14 @@ function showResult() {
     wrongListEl.textContent = "이번 시험에서는 틀린 단어가 없어요 🎉";
   } else {
     const uniqueIds = [...new Set(state.thisExamWrong)];
-    const vocab = getCurrentVocab(); // ✅ 현재 언어 단어장 사용
-
     uniqueIds.forEach((id) => {
-      const w = vocab.find((v) => v.id === id);
+      const w = VOCAB.find((v) => v.id === id);
       if (!w) return;
-
       const div = document.createElement("div");
       div.className = "wrong-item";
-
-      // ✅ 언어별 표시 포맷
-      if (currentLang === "ja") {
-        div.textContent = `(${w.id}) ${w.jpKanji || w.jpKana}（${w.jpKana}） - ${w.krMeaning}`;
-      } else if (currentLang === "fr") {
-        div.textContent = `(${w.id}) ${w.fr} - ${w.en}`;
-      } else if (currentLang === "es") {
-        div.textContent = `(${w.id}) ${w.es} - ${w.en}`;
-      } else {
-        // 혹시 모를 fallback
-        div.textContent = `(${w.id})`;
-      }
+      div.textContent = `(${w.id}) ${w.jpKanji || w.jpKana}（${
+        w.jpKana
+      }） - ${w.krMeaning}`;
       wrongListEl.appendChild(div);
     });
   }

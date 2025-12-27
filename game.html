@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The World of Words | Game</title>
+  <link rel="stylesheet" href="./game.css" />
+</head>
+<body>
+  <main class="screen" aria-label="The World of Words game start screen">
+    <!-- Background (auto switches by orientation) -->
+    <picture class="bg" aria-hidden="true">
+      <source
+        media="(orientation: landscape)"
+        srcset="./assets/world%20of%20words%20game%20Background%20For%20Desktop.png"
+      />
+      <img
+        class="bg__img"
+        src="./assets/world%20of%20words%20game%20Background%20For%20Mobile.png"
+        alt=""
+        draggable="false"
+      />
+    </picture>
+
+    <section class="ui" aria-label="Start menu">
+      <!-- Back -->
+      <button class="pixel-btn back-btn" id="back-btn" type="button" aria-label="Back">
+        <img
+          class="pixel-btn__label"
+          src="./assets/BACK.png"
+          alt=""
+          draggable="false"
+        />
+      </button>
+
+      <!-- Title -->
+      <div class="title" aria-label="The World of Words Game">
+        <img
+          class="title__main"
+          src="./assets/The%20World%20Of%20Words.png"
+          alt="The World of Words"
+          draggable="false"
+        />
+        <img
+          class="title__sub"
+          src="./assets/Game.png"
+          alt="Game"
+          draggable="false"
+        />
+      </div>
+
+      <!-- Language buttons -->
+      <div class="lang-area" role="group" aria-label="Choose a language">
+        <button class="pixel-btn lang-btn" type="button" data-lang="ja" aria-label="Japanese">
+          <img
+            class="pixel-btn__label"
+            src="./assets/%23U65e5%23U672c%23U8a9e.png"
+            alt=""
+            draggable="false"
+          />
+        </button>
+
+        <button class="pixel-btn lang-btn" type="button" data-lang="fr" aria-label="French">
+          <img
+            class="pixel-btn__label"
+            src="./assets/Fran%23U00e7ais.png"
+            alt=""
+            draggable="false"
+          />
+        </button>
+
+        <button class="pixel-btn lang-btn" type="button" data-lang="es" aria-label="Spanish">
+          <img
+            class="pixel-btn__label"
+            src="./assets/Espa%23U00f1ol.png"
+            alt=""
+            draggable="false"
+          />
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script src="./game.js"></script>
+</body>
+</html>

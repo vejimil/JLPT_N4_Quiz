@@ -1,51 +1,312 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>The World of Words - Game</title>
-  <link rel="stylesheet" href="game.css" />
+  <title>World of Words - Game</title>
+
+  <style>
+    :root{
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+
+      --ui-pad-x: clamp(12px, 2.2vw, 24px);
+      --ui-pad-y: clamp(12px, 2.2vh, 24px);
+
+      --title-gap: clamp(6px, 1.2vh, 14px);
+
+      --btn-gap: clamp(14px, 2.2vh, 22px);
+      --btn-w: clamp(240px, 58vw, 360px);
+      --btn-h: clamp(64px, 10vh, 90px);
+
+      --back-w: clamp(140px, 20vw, 210px);
+      --back-h: clamp(48px, 8vh, 70px);
+    }
+
+    /* Prevent scrolling at all costs */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* Pixel-art crispness */
+    img {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -ms-interpolation-mode: nearest-neighbor;
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+
+    .stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Background: only ONE is chosen by <picture> */
+    .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: translateZ(0);
+    }
+
+    /* UI overlay */
+    .ui {
+      position: absolute;
+      inset: 0;
+      padding:
+        calc(var(--ui-pad-y) + var(--safe-top))
+        calc(var(--ui-pad-x) + var(--safe-right))
+        calc(var(--ui-pad-y) + var(--safe-bottom))
+        calc(var(--ui-pad-x) + var(--safe-left));
+      display: block;
+      pointer-events: none; /* enable clicks only on buttons */
+    }
+
+    /* Back */
+    .back-wrap{
+      position: absolute;
+      top: calc(var(--ui-pad-y) + var(--safe-top));
+      left: calc(var(--ui-pad-x) + var(--safe-left));
+      pointer-events: auto;
+    }
+
+    .pix-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      display: inline-block;
+      position: relative;
+      width: var(--back-w);
+      height: var(--back-h);
+      transform: translateZ(0);
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+    }
+
+    .pix-btn:active { transform: scale(0.98); }
+    @media (hover:hover) and (pointer:fine){
+      .pix-btn:hover { transform: scale(1.05); }
+    }
+
+    .pix-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+
+    .pix-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+      height: 52%;
+      max-width: 78%;
+    }
+
+    /* Title */
+    .title{
+      position: absolute;
+      left: 50%;
+      top: calc(var(--ui-pad-y) + var(--safe-top) + clamp(34px, 6vh, 90px));
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--title-gap);
+      pointer-events: none;
+      text-align: center;
+    }
+
+    .title .line1{
+      width: min(92vw, 920px);
+      height: auto;
+    }
+    .title .line2{
+      width: min(70vw, 420px);
+      height: auto;
+    }
+
+    /* Language buttons area */
+    .langs{
+      position: absolute;
+      left: 50%;
+      top: 64%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column; /* mobile default */
+      align-items: center;
+      gap: var(--btn-gap);
+      pointer-events: auto;
+    }
+
+    .lang-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      width: var(--btn-w);
+      height: var(--btn-h);
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+    }
+
+    .lang-btn:active { transform: scale(0.98); }
+    @media (hover:hover) and (pointer:fine){
+      .lang-btn:hover { transform: scale(1.05); }
+    }
+
+    .lang-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+
+    .lang-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+      height: 55%;
+      max-width: 82%;
+    }
+
+    /* Desktop / landscape: row buttons like screenshot */
+    @media (min-aspect-ratio: 4/3){
+      :root{
+        --btn-w: clamp(240px, 22vw, 320px);
+        --btn-h: clamp(66px, 8vh, 84px);
+      }
+      .langs{
+        flex-direction: row;
+        top: 72%;
+        gap: clamp(18px, 3.2vw, 40px);
+      }
+      .title{
+        top: calc(var(--ui-pad-y) + var(--safe-top) + clamp(28px, 5vh, 70px));
+      }
+    }
+
+    /* Very small phones: keep within screen */
+    @media (max-width: 360px){
+      :root{
+        --btn-w: clamp(210px, 78vw, 280px);
+        --btn-h: clamp(58px, 10vh, 78px);
+      }
+      .langs{ top: 66%; }
+    }
+
+    /* Toast */
+    .toast{
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--ui-pad-y) + var(--safe-bottom));
+      transform: translateX(-50%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 14px;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      border-radius: 999px;
+      padding: 10px 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+    .toast.show{
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
+    }
+  </style>
 </head>
+
 <body>
-  <main class="screen" role="main" aria-label="Game start screen">
-    <!-- Backgrounds (swap by orientation) -->
-    <img class="bg bg-desktop" src="assets/world_of_words_game_Background_For_Desktop.png" alt="" aria-hidden="true" />
-    <img class="bg bg-mobile" src="assets/world_of_words_game_Background_For_Mobile.png" alt="" aria-hidden="true" />
+  <div class="stage">
+    <picture>
+      <!-- Portrait first (mobile) -->
+      <source media="(orientation: portrait)" srcset="assets/world_of_words_game_Background_For_Mobile.png" />
+      <!-- Landscape fallback (desktop) -->
+      <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" />
+    </picture>
 
-    <!-- Back -->
-    <button class="img-btn back" id="backBtn" type="button" aria-label="Back">
-      <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
-      <img class="img-btn__label" src="assets/BACK.png" alt="BACK" />
-    </button>
+    <div class="ui">
+      <div class="back-wrap">
+        <button class="pix-btn" id="backBtn" aria-label="Back">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/BACK.png" alt="BACK" />
+        </button>
+      </div>
 
-    <!-- Title -->
-    <section class="title" aria-label="Title">
-      <img class="title__top" src="assets/The_World_Of_Words.png" alt="The World of Words" />
-      <img class="title__bottom" src="assets/Game.png" alt="Game" />
-    </section>
+      <div class="title" aria-hidden="true">
+        <img class="line1" src="assets/The_World_Of_Words.png" alt="The World of Words" />
+        <img class="line2" src="assets/Game.png" alt="Game" />
+      </div>
 
-    <!-- Language buttons -->
-    <nav class="langs" aria-label="Choose language">
-      <button class="img-btn lang" type="button" data-lang="ja" aria-label="Japanese">
-        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
-        <img class="img-btn__label" src="assets/Japanese.png" alt="日本語" />
-      </button>
+      <div class="langs">
+        <button class="lang-btn" data-lang="ja" aria-label="Japanese">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/Japanese.png" alt="日本語" />
+        </button>
 
-      <button class="img-btn lang" type="button" data-lang="fr" aria-label="French">
-        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
-        <img class="img-btn__label" src="assets/French.png" alt="Français" />
-      </button>
+        <button class="lang-btn" data-lang="fr" aria-label="Français">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/French.png" alt="Français" />
+        </button>
 
-      <button class="img-btn lang" type="button" data-lang="es" aria-label="Spanish">
-        <img class="img-btn__bg" src="assets/Button.png" alt="" aria-hidden="true" />
-        <img class="img-btn__label" src="assets/Spanish.png" alt="Español" />
-      </button>
-    </nav>
+        <button class="lang-btn" data-lang="es" aria-label="Español">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/Spanish.png" alt="Español" />
+        </button>
+      </div>
 
-    <!-- Toast -->
-    <div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
-  </main>
+      <div class="toast" id="toast">Coming soon</div>
+    </div>
+  </div>
 
-  <script src="game.js"></script>
+  <script>
+    const backBtn = document.getElementById('backBtn');
+    backBtn.addEventListener('click', () => {
+      // Always go back to index.html at root
+      window.location.href = './index.html';
+    });
+
+    const toast = document.getElementById('toast');
+    let toastTimer = null;
+
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1200);
+    }
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lang = btn.dataset.lang;
+        showToast('Coming soon (' + lang + ')');
+        // Later: window.location.href = './play.html?lang=' + lang; (or whatever you decide)
+      });
+    });
+  </script>
 </body>
 </html>

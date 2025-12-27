@@ -892,3 +892,10 @@ document.addEventListener("DOMContentLoaded", () => {
     showPanel("setup-panel");
   });
 });
+
+const goGameBtn = document.getElementById("go-game-btn");
+if (goGameBtn) {
+  goGameBtn.addEventListener("click", () => {
+    window.location.href = "./game.html";
+  });
+}

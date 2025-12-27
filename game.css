@@ -1,0 +1,82 @@
+/* 화면 전체 배경 */
+#game-start {
+  min-height: 100vh;
+  position: relative;
+  display: block;
+
+  /* 배경 이미지 */
+  background: url("assets/world of words game Background.png") center/cover no-repeat;
+
+  /* 바깥 여백 */
+  padding: 32px;
+  box-sizing: border-box;
+}
+
+/* BACK 이미지 버튼 */
+.img-btn {
+  width: 192px;              /* 필요하면 조절 */
+  height: 80px;              /* 필요하면 조절 */
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+#back-btn {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+
+  background: url("assets/Button.png") center/contain no-repeat;
+}
+
+/* 타이틀 텍스트 (픽셀 느낌은 폰트에 따라 달라서, 일단 스타일만 잡음) */
+.title-wrap {
+  position: absolute;
+  top: 160px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+}
+
+.title-line1 {
+  font-size: clamp(34px, 5vw, 84px);
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.title-line2 {
+  margin-top: 10px;
+  font-size: clamp(30px, 4vw, 72px);
+  font-weight: 900;
+}
+
+/* 언어 버튼 배치 */
+.lang-row {
+  position: absolute;
+  left: 50%;
+  bottom: 62px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 28px;
+}
+
+/* 일단 텍스트 버튼. 나중에 PNG로 교체 가능 */
+.lang-btn {
+  min-width: 240px;
+  height: 72px;
+  padding: 0 20px;
+  border-radius: 14px;
+  border: 3px solid rgba(0,0,0,0.35);
+  background: rgba(35, 39, 53, 0.92);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.lang-btn:active {
+  transform: translateY(2px);
+}

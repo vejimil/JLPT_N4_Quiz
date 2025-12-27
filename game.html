@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>World of Words - Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="game.css" />
+</head>
+<body>
+  <main id="game-start">
+    <!-- BACK 버튼 -->
+    <button id="back-btn" class="img-btn" aria-label="Back"></button>
+
+    <!-- 타이틀(글자는 export 안 했으니 HTML로) -->
+    <div class="title-wrap">
+      <div class="title-line1">The World Of Words</div>
+      <div class="title-line2">Game</div>
+    </div>
+
+    <!-- 언어 버튼(일단 텍스트 버튼으로. 나중에 PNG로 바꿔도 됨) -->
+    <div class="lang-row">
+      <button class="lang-btn" data-lang="ja">日本語</button>
+      <button class="lang-btn" data-lang="fr">Français</button>
+      <button class="lang-btn" data-lang="es">Español</button>
+    </div>
+  </main>
+
+  <!-- 단어장 공유 -->
+  <script src="vocab.js"></script>
+  <script src="vocab-fr.js"></script>
+  <script src="vocab-es.js"></script>
+
+  <script src="game.js"></script>
+</body>
+</html>

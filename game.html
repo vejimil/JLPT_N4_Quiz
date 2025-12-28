@@ -421,8 +421,7 @@
        ========================================================= */
     document.querySelectorAll('.lang-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const lang = btn.dataset.lang; // 'ja' | 'fr' | 'es'
-        showToast('Coming soon (' + lang + ')');
+        window.location.href = './difficulty.html';
 
         // Future expansion:
         // window.location.href = './play.html?lang=' + lang;

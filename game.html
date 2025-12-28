@@ -1,327 +1,311 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" /> <!-- Document encoding: UTF-8 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /> <!-- Mobile viewport + safe-area support -->
-  <title>World of Words - Game</title> <!-- Browser tab title -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>World of Words - Game</title>
 
   <style>
-    :root{ /* Global CSS variables (easy to tune sizes in one place) */
-      --safe-top: env(safe-area-inset-top, 0px);     /* iOS notch safe area (top) */
-      --safe-right: env(safe-area-inset-right, 0px); /* iOS notch safe area (right) */
-      --safe-bottom: env(safe-area-inset-bottom, 0px);/* iOS home-indicator safe area (bottom) */
-      --safe-left: env(safe-area-inset-left, 0px);   /* iOS notch safe area (left) */
+    :root{
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
 
-      /* overall padding */
-      --ui-pad-x: clamp(10px, 2vw, 20px); /* horizontal padding for UI */
-      --ui-pad-y: clamp(10px, 2vh, 20px); /* vertical padding for UI */
+      --ui-pad-x: clamp(10px, 2vw, 20px);
+      --ui-pad-y: clamp(10px, 2vh, 20px);
 
-      --title-gap: clamp(6px, 1vh, 12px); /* vertical gap between title line1 & line2 */
+      --title-gap: clamp(6px, 1vh, 12px);
 
-      /* ---- Title sizes (UPDATED) ---- */
-      /* Goal: line2(Game) is ONLY slightly bigger than line1. */
-      --title1-w: min(72vw, 640px); /* The_World_Of_Words.png width */
-      --title2-w: min(75vw, 680px); /* Game.png width (a bit bigger than line1) */
+      /* Title sizes */
+      --title1-w: min(72vw, 640px);
+      --title2-w: min(75vw, 680px);
 
-      /* ---- Language buttons sizes (UPDATED) ---- */
-      /* Goal: fixed size + slightly smaller than before. */
-      --btn-gap: 16px;  /* fixed vertical/horizontal gap between language buttons */
-      --btn-w: 270px;   /* fixed language button width */
-      --btn-h: 68px;    /* fixed language button height */
+      /* Language buttons sizes */
+      --btn-gap: 16px;
+      --btn-w: 270px;
+      --btn-h: 68px;
 
-      /* Back button sizes (kept responsive, already smaller) */
-      --back-w: clamp(120px, 16vw, 180px); /* Back button width */
-      --back-h: clamp(40px, 6.6vh, 58px);  /* Back button height */
+      /* Back button sizes */
+      --back-w: clamp(120px, 16vw, 180px);
+      --back-h: clamp(40px, 6.6vh, 58px);
     }
 
-    /* Prevent scrolling (so the screen always fits without scroll) */
-    html, body {          /* Apply to the whole page */
-      width: 100%;        /* Full width */
-      height: 100%;       /* Full height */
-      margin: 0;          /* Remove default margins */
-      padding: 0;         /* Remove default padding */
-      overflow: hidden;   /* No scrollbars */
-      background: #000;   /* Black behind the background image */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
     }
 
-    /* Pixel-art crispness for all images */
-    img {                          /* All <img> tags */
-      image-rendering: pixelated;  /* Prefer crisp pixels */
-      image-rendering: crisp-edges;/* Fallback for some browsers */
-      -ms-interpolation-mode: nearest-neighbor; /* Old IE/Edge fallback */
-      -webkit-user-drag: none;     /* Prevent dragging images */
-      user-select: none;           /* Prevent selecting images */
+    img {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -ms-interpolation-mode: nearest-neighbor;
+      -webkit-user-drag: none;
+      user-select: none;
     }
 
-    .stage {              /* Fullscreen container */
-      position: fixed;    /* Stay pinned to viewport */
-      inset: 0;           /* Top/Right/Bottom/Left = 0 */
-      width: 100%;        /* Full width */
-      height: 100%;       /* Full height */
-      overflow: hidden;   /* Clip overflow */
+    .stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
     }
 
-    /* Background: desktop only (no switching) */
-    .bg {                 /* Background image */
-      position: absolute; /* Fill .stage */
-      inset: 0;           /* Stretch to edges */
-      width: 100%;        /* Full width */
-      height: 100%;       /* Full height */
-      object-fit: cover;  /* Cover screen without distortion */
-      transform: translateZ(0); /* Slight GPU hint */
+    /* Background: desktop only */
+    .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: translateZ(0);
     }
 
-    /* UI overlay that sits above background */
-    .ui {                 /* UI wrapper */
-      position: absolute; /* Overlay on top of background */
-      inset: 0;           /* Fullscreen */
-      padding:            /* Respect safe areas */
+    .ui {
+      position: absolute;
+      inset: 0;
+      padding:
         calc(var(--ui-pad-y) + var(--safe-top))
         calc(var(--ui-pad-x) + var(--safe-right))
         calc(var(--ui-pad-y) + var(--safe-bottom))
         calc(var(--ui-pad-x) + var(--safe-left));
-      display: block;     /* Normal block layout */
-      pointer-events: none; /* Only buttons should receive clicks */
+      display: block;
+      pointer-events: none;
     }
 
-    /* Back button wrapper (top-left) */
-    .back-wrap{                               /* Container for back button */
-      position: absolute;                     /* Pin inside .ui */
-      top: calc(var(--ui-pad-y) + var(--safe-top));   /* Safe top */
-      left: calc(var(--ui-pad-x) + var(--safe-left)); /* Safe left */
-      pointer-events: auto;                   /* Enable click */
-      z-index: 10;                            /* Above title */
+    .back-wrap{
+      position: absolute;
+      top: calc(var(--ui-pad-y) + var(--safe-top));
+      left: calc(var(--ui-pad-x) + var(--safe-left));
+      pointer-events: auto;
+      z-index: 10;
     }
 
-    .pix-btn{               /* Back button (<button>) */
-      border: 0;            /* No default border */
-      padding: 0;           /* No default padding */
-      background: transparent; /* Let image define the look */
-      cursor: pointer;      /* Pointer cursor */
-      display: inline-block;/* Inline button */
-      position: relative;   /* For absolute-positioned children */
-      width: var(--back-w); /* Responsive width */
-      height: var(--back-h);/* Responsive height */
-      transform: translateZ(0); /* GPU hint */
-      transition: transform 120ms ease; /* Smooth hover/press scaling */
-      touch-action: manipulation; /* Better mobile tap */
+    /* ✅ 버튼 공통 베이스 (중복 제거) */
+    .pix-btn,
+    .lang-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      display: inline-block;
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+      transform: translateZ(0);
     }
 
-    .pix-btn:active { transform: scale(0.98); } /* Slight press animation */
-    @media (hover:hover) and (pointer:fine){     /* Only for real mouse devices */
-      .pix-btn:hover { transform: scale(1.05); } /* Slight hover animation */
+    .pix-btn:active,
+    .lang-btn:active { transform: scale(0.98); }
+
+    @media (hover:hover) and (pointer:fine){
+      .pix-btn:hover,
+      .lang-btn:hover { transform: scale(1.05); }
     }
 
-    .pix-btn .bg-img{       /* Back button background image */
-      position: absolute;   /* Fill button */
-      inset: 0;             /* Full area */
-      width: 100%;          /* Full width */
-      height: 100%;         /* Full height */
-      object-fit: fill;     /* Fill without keeping aspect */
+    .pix-btn{
+      width: var(--back-w);
+      height: var(--back-h);
     }
 
-    .pix-btn .label-img{          /* Back button label image (BACK.png) */
-      position: absolute;         /* Center it */
-      left: 50%;                  /* Center X */
-      top: 50%;                   /* Center Y */
-      transform: translate(-50%, -50%); /* True center */
-      width: auto;                /* Keep native aspect */
-      height: 48%;                /* Scale label by button height */
-      max-width: 78%;             /* Prevent label overflow */
+    .pix-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
     }
 
-    /* Title (starts BELOW back button to avoid overlap) */
-    .title{ /* Title container */
-      position: absolute; /* Pin in UI */
-      left: 50%; /* Center horizontally */
-      top: calc( /* Place title below back button */
+    /* ✅ label-img 중앙정렬 공통 (중복 제거) */
+    .pix-btn .label-img,
+    .lang-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+    }
+
+    .pix-btn .label-img{
+      height: 48%;
+      max-width: 78%;
+    }
+
+    .title{
+      position: absolute;
+      left: 50%;
+      top: calc(
         var(--ui-pad-y) + var(--safe-top) + var(--back-h) + clamp(14px, 2vh, 26px)
       );
-      transform: translateX(-50%); /* Center exact */
-      display: flex;               /* Stack vertically */
-      flex-direction: column;      /* Column layout */
-      align-items: center;         /* Center children */
-      gap: var(--title-gap);       /* Gap between line1 & line2 */
-      pointer-events: none;        /* Title not clickable */
-      text-align: center;          /* Center text for accessibility */
-      z-index: 5;                  /* Under back button, above background */
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--title-gap);
+      pointer-events: none;
+      text-align: center;
+      z-index: 5;
     }
 
-    .title .line1{           /* Title line 1 image */
-      width: var(--title1-w);/* (UPDATED) width via variable */
-      height: auto;          /* Keep aspect ratio */
+    .title .line1{
+      width: var(--title1-w);
+      height: auto;
     }
-    .title .line2{           /* Title line 2 image (Game) */
-      width: var(--title2-w);/* (UPDATED) only slightly bigger than line1 */
-      height: auto;          /* Keep aspect ratio */
-    }
-
-    /* Language buttons area */
-    .langs{                   /* Container for JA/FR/ES buttons */
-      position: absolute;     /* Pin inside .ui */
-      left: 50%;              /* Center X */
-      top: 67%;               /* Vertical placement (mobile portrait) */
-      transform: translate(-50%, -50%); /* Centered anchor */
-      display: flex;          /* Flex layout */
-      flex-direction: column; /* Column by default (mobile) */
-      align-items: center;    /* Center items */
-      gap: var(--btn-gap);    /* Gap between buttons (fixed) */
-      pointer-events: auto;   /* Enable click */
-      z-index: 6;             /* Above title */
+    .title .line2{
+      width: var(--title2-w);
+      height: auto;
     }
 
-    .lang-btn{                /* Language button (<button>) */
-      border: 0;              /* No default border */
-      padding: 0;             /* No default padding */
-      background: transparent;/* Use images */
-      cursor: pointer;        /* Pointer cursor */
-      position: relative;     /* For absolute children */
-      width: var(--btn-w);    /* (UPDATED) fixed width */
-      height: var(--btn-h);   /* (UPDATED) fixed height */
-      transition: transform 120ms ease; /* Hover/press animation */
-      touch-action: manipulation; /* Better mobile tap */
+    .langs{
+      position: absolute;
+      left: 50%;
+      top: 67%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--btn-gap);
+      pointer-events: auto;
+      z-index: 6;
     }
 
-    .lang-btn:active { transform: scale(0.98); } /* Press feedback */
-    @media (hover:hover) and (pointer:fine){     /* Mouse devices only */
-      .lang-btn:hover { transform: scale(1.05); } /* Hover feedback */
+    .lang-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
     }
 
-    .lang-btn .bg-img{                    /* Language button background image */
-      position: absolute;                 /* Fill button */
-      inset: 0;                           /* Full area */
-      width: 100%;                        /* Full width */
-      height: 100%;                       /* Full height */
-      object-fit: fill;                   /* Stretch to fit */
-      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25)); /* Small shadow for contrast */
+    .lang-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
     }
 
-    .lang-btn .label-img{            /* Language label image (Japanese/French/Spanish png) */
-      position: absolute;            /* Center it */
-      left: 50%;                     /* Center X */
-      top: 50%;                      /* Center Y */
-      transform: translate(-50%, -50%); /* True center */
-      width: auto;                   /* Keep aspect */
-      height: 50%;                   /* Scale to button height */
-      max-width: 82%;                /* Prevent overflow */
+    .lang-btn .label-img{
+      height: 50%;
+      max-width: 82%;
     }
 
-    /* Desktop / landscape: row buttons like screenshot */
-    @media (min-aspect-ratio: 4/3){ /* Wider screens */
-      .langs{                       /* Layout change for desktop */
-        flex-direction: row;        /* Row layout */
-        top: 74%;                   /* Slightly lower on desktop */
-        gap: 28px;                  /* Fixed horizontal gap */
+    @media (min-aspect-ratio: 4/3){
+      .langs{
+        flex-direction: row;
+        top: 74%;
+        gap: 28px;
       }
-      :root{                        /* Title sizes for desktop (UPDATED) */
-        --title1-w: min(55vw, 720px); /* Slightly smaller overall */
-        --title2-w: min(58vw, 760px); /* Only slightly bigger than line1 */
-      }
-    }
-
-    /* Very small phones: keep within screen */
-    @media (max-width: 360px){ /* Small devices */
       :root{
-        --btn-w: 240px;             /* (UPDATED) smaller fixed width */
-        --btn-h: 62px;              /* (UPDATED) smaller fixed height */
-        --back-w: clamp(110px, 42vw, 160px); /* Keep back button safe */
-        --back-h: clamp(38px, 6.2vh, 54px);  /* Keep back button safe */
-        --title1-w: min(84vw, 560px); /* Title line1 smaller */
-        --title2-w: min(87vw, 600px); /* Title line2 slightly bigger */
+        --title1-w: min(55vw, 720px);
+        --title2-w: min(58vw, 760px);
       }
-      .langs{ top: 69%; } /* Slight vertical adjustment */
     }
 
-    /* Toast (temporary notice) */
-    .toast{ /* Toast container */
-      position: absolute; /* Pin near bottom */
-      left: 50%;          /* Center X */
-      bottom: calc(var(--ui-pad-y) + var(--safe-bottom)); /* Above safe bottom */
-      transform: translateX(-50%); /* Center exact */
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; /* Default UI font */
-      font-size: 14px;     /* Text size */
-      color: #fff;         /* Text color */
-      background: rgba(0,0,0,0.55); /* Semi-transparent black */
-      border-radius: 999px; /* Pill shape */
-      padding: 10px 14px;  /* Inner padding */
-      opacity: 0;          /* Hidden by default */
-      pointer-events: none;/* Not clickable */
-      transition: opacity 180ms ease, transform 180ms ease; /* Smooth show/hide */
-      z-index: 20;         /* Above everything */
+    @media (max-width: 360px){
+      :root{
+        --btn-w: 240px;
+        --btn-h: 62px;
+        --back-w: clamp(110px, 42vw, 160px);
+        --back-h: clamp(38px, 6.2vh, 54px);
+        --title1-w: min(84vw, 560px);
+        --title2-w: min(87vw, 600px);
+      }
+      .langs{ top: 69%; }
     }
-    .toast.show{ /* Toast visible state */
-      opacity: 1; /* Show */
-      transform: translateX(-50%) translateY(-6px); /* Slight pop-up effect */
+
+    .toast{
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--ui-pad-y) + var(--safe-bottom));
+      transform: translateX(-50%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 14px;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      border-radius: 999px;
+      padding: 10px 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 20;
+    }
+    .toast.show{
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
     }
   </style>
 </head>
 
 <body>
-  <div class="stage"> <!-- Fullscreen stage -->
-    <!-- Desktop background ONLY -->
-    <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" /> <!-- Background image -->
+  <div class="stage">
+    <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" />
 
-    <div class="ui"> <!-- UI overlay -->
-      <div class="back-wrap"> <!-- Back button container -->
-        <button class="pix-btn" id="backBtn" aria-label="Back"> <!-- Back button (clickable) -->
-          <img class="bg-img" src="assets/Button.png" alt="" /> <!-- Back button background -->
-          <img class="label-img" src="assets/BACK.png" alt="BACK" /> <!-- Back label -->
+    <div class="ui">
+      <div class="back-wrap">
+        <button class="pix-btn" id="backBtn" aria-label="Back">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/BACK.png" alt="BACK" />
         </button>
       </div>
 
-      <div class="title" aria-hidden="true"> <!-- Title block (not interactive) -->
-        <img class="line1" src="assets/The_World_Of_Words.png" alt="The World of Words" /> <!-- Title line1 -->
-        <img class="line2" src="assets/Game.png" alt="Game" /> <!-- Title line2 (UPDATED sizing via CSS vars) -->
+      <div class="title" aria-hidden="true">
+        <img class="line1" src="assets/The_World_Of_Words.png" alt="The World of Words" />
+        <img class="line2" src="assets/Game.png" alt="Game" />
       </div>
 
-      <div class="langs"> <!-- Language buttons group -->
-        <button class="lang-btn" data-lang="ja" aria-label="Japanese"> <!-- Japanese button -->
-          <img class="bg-img" src="assets/Button.png" alt="" /> <!-- Button background -->
-          <img class="label-img" src="assets/Japanese.png" alt="日本語" /> <!-- Label image -->
+      <div class="langs">
+        <button class="lang-btn" data-lang="ja" aria-label="Japanese">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/Japanese.png" alt="日本語" />
         </button>
 
-        <button class="lang-btn" data-lang="fr" aria-label="Français"> <!-- French button -->
-          <img class="bg-img" src="assets/Button.png" alt="" /> <!-- Button background -->
-          <img class="label-img" src="assets/French.png" alt="Français" /> <!-- Label image -->
+        <button class="lang-btn" data-lang="fr" aria-label="Français">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/French.png" alt="Français" />
         </button>
 
-        <button class="lang-btn" data-lang="es" aria-label="Español"> <!-- Spanish button -->
-          <img class="bg-img" src="assets/Button.png" alt="" /> <!-- Button background -->
-          <img class="label-img" src="assets/Spanish.png" alt="Español" /> <!-- Label image -->
+        <button class="lang-btn" data-lang="es" aria-label="Español">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/Spanish.png" alt="Español" />
         </button>
       </div>
 
-      <div class="toast" id="toast">Coming soon</div> <!-- Temporary toast message -->
+      <div class="toast" id="toast">Coming soon</div>
     </div>
   </div>
 
   <script>
-    // Back button: go back to index.html
-    const backBtn = document.getElementById('backBtn'); // Find back button element
-    backBtn.addEventListener('click', () => {           // Listen for clicks
-      window.location.href = './index.html';            // Navigate to main screen
-    });
-
-    // Toast state
-    const toast = document.getElementById('toast'); // Find toast element
-    let toastTimer = null;                          // Store timeout id
-
-    // Show toast message for a short time
-    function showToast(msg){                        // Toast helper function
-      toast.textContent = msg;                      // Set toast text
-      toast.classList.add('show');                  // Add visible class
-      clearTimeout(toastTimer);                     // Cancel any previous timer
-      toastTimer = setTimeout(() => {               // Start a new timer
-        toast.classList.remove('show');             // Hide toast
-      }, 1200);                                     // Visible duration (ms)
+    // Back button: go back to index.html (✅ null-guard)
+    const backBtn = document.getElementById('backBtn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        window.location.href = './index.html';
+      });
     }
 
-    // Language buttons: currently "Coming soon"
-    document.querySelectorAll('.lang-btn').forEach(btn => { // Loop all language buttons
-      btn.addEventListener('click', () => {                 // On click
-        const lang = btn.dataset.lang;                      // Read data-lang attribute
-        showToast('Coming soon (' + lang + ')');            // Show toast (lang code)
-        // Later: window.location.href = './play.html?lang=' + lang; // Future navigation
+    // Toast (✅ null-guard)
+    const toast = document.getElementById('toast');
+    let toastTimer = null;
+
+    function showToast(msg){
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1200);
+    }
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lang = btn.dataset.lang;
+        showToast('Coming soon (' + lang + ')');
+        // Later: window.location.href = './play.html?lang=' + lang;
       });
     });
   </script>

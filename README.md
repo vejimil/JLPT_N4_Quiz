@@ -1,3 +1,5 @@
-Buttons should be shrink as the page gets narrower.
+다음 할일: difficulty에서 back 눌렀을때 난이도 버튼도 다시 모여서 돌아가게 하기.
+
+이제 진짜 게임 만들기.
 
 스페인어, 프랑스어 - 관사 추가하자는 의견.

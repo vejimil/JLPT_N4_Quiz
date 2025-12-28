@@ -31,9 +31,9 @@
       --title2-w: min(40vw, 360px);
 
       /* Language buttons (default) */
-      --btn-gap: 40px;
-      --btn-w: 220px;
-      --btn-h: 68px;
+      --btn-gap: clamp(16px, 3.26vw, 48px);
+      --btn-w: clamp(180px, 17.95vw, 220px);
+      --btn-h: clamp(56px, 5.55vw, 68px);
 
       /* Back button (default) */
       --back-w: clamp(120px, 16vw, 180px);
@@ -274,8 +274,6 @@
        ========================================================= */
     @media (max-width: 360px){
       :root{
-        --btn-w: 220px;
-        --btn-h: 62px;
         --back-w: clamp(110px, 42vw, 160px);
         --back-h: clamp(38px, 6.2vh, 54px);
         --title1-w: min(84vw, 560px);

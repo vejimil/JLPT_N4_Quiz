@@ -209,12 +209,14 @@
     }
 
     .title .line1{
-      width: var(--title1-w);
-      height: auto;
+      height: clamp(46px, 6.2vh, 76px);
+      width: auto;
+      max-width: 92vw;
     }
     .title .line2{
-      width: var(--title2-w);
-      height: auto;
+      height: clamp(48px, 6.6vh, 79px); /* slightly bigger than line1 */
+      width: auto;
+      max-width: 92vw;
     }
 
     /* =========================================================
@@ -264,10 +266,6 @@
         flex-direction: row;
         top: 74%;
         gap: 32px;
-      }
-      :root{
-        --title1-w: min(55vw, 720px);
-        --title2-w: min(58vw, 760px);
       }
     }
 

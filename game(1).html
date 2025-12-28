@@ -26,16 +26,6 @@
 
       --title-gap: clamp(6px, 1vh, 12px);
 
-      /* Title morph (default = Language screen) */
-      --title-top-gap: clamp(28px, 4vh, 52px);
-      --title1-h: clamp(46px, 6.2vw, 76px);
-      --title2-h: clamp(48px, 6.6vw, 79px);
-
-      /* Difficulty layout tuning */
-      --diff-gap: clamp(24px, 3vw, 40px);
-      --diff-top: 67%;
-      --diff-top-wide: 62%;
-
       /* Title image sizes (default) */
       --title1-w: min(72vw, 640px);
       --title2-w: min(40vw, 360px);
@@ -102,18 +92,6 @@
     }
 
     /* =========================================================
-       3.5) Animation layer
-       - Used for the language -> difficulty split (ghost buttons)
-       - pointer-events:none so it never blocks clicks
-       ========================================================= */
-    .anim-layer{
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 30;
-    }
-
-    /* =========================================================
        4) UI Root Layer
        - pointer-events:none by default to avoid blocking clicks
        - Specific clickable areas re-enable pointer-events:auto
@@ -150,9 +128,7 @@
        - touch-action: improves mobile tap responsiveness
        ========================================================= */
     .pix-btn,
-    .lang-btn,
-    .diff-btn,
-    .ghost-btn{
+    .lang-btn{
       border: 0;
       padding: 0;
       background: transparent;
@@ -166,14 +142,12 @@
 
     /* Press-down effect (also works on mobile taps) */
     .pix-btn:active,
-    .lang-btn:active,
-    .diff-btn:active { transform: scale(0.98); }
+    .lang-btn:active { transform: scale(0.98); }
 
     /* Only apply hover zoom where hover exists (desktop mouse) */
     @media (hover:hover) and (pointer:fine){
       .pix-btn:hover,
-      .lang-btn:hover,
-      .diff-btn:hover { transform: scale(1.05); }
+      .lang-btn:hover { transform: scale(1.05); }
     }
 
     /* =========================================================
@@ -199,9 +173,7 @@
        - Centers the label image for both Back and Language buttons
        ========================================================= */
     .pix-btn .label-img,
-    .lang-btn .label-img,
-    .diff-btn .label-img,
-    .ghost-btn .label-img{
+    .lang-btn .label-img{
       position: absolute;
       left: 50%;
       top: 50%;
@@ -224,7 +196,7 @@
       position: absolute;
       left: 50%;
       top: calc(
-        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + var(--title-top-gap)
+        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + clamp(28px, 4vh, 52px)
       );
       transform: translateX(-50%);
       display: flex;
@@ -234,38 +206,17 @@
       pointer-events: none;
       text-align: center;
       z-index: 5;
-      transition: top 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
     .title .line1{
-      height: var(--title1-h);
+      height: clamp(46px, 6.2vw, 76px);
       width: auto;
       max-width: 92vw;
-      transition: height 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
     .title .line2{
-      height: var(--title2-h); /* slightly bigger than line1 */
+      height: clamp(48px, 6.6vw, 79px); /* slightly bigger than line1 */
       width: auto;
       max-width: 92vw;
-      transition: height 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-
-    /* =========================================================
-       9.5) Difficulty mode (title morph + fade language buttons)
-       ========================================================= */
-    body.difficulty-mode{
-      --title-top-gap: clamp(12px, 1.6vh, 20px);
-      --title1-h: clamp(28px, 3.4vw, 46px);
-      --title2-h: clamp(30px, 3.7vw, 48px);
-      --title-gap: clamp(4px, 0.8vh, 8px);
-    }
-
-    body.difficulty-mode .langs{
-      pointer-events: none;
-    }
-    body.difficulty-mode .langs .lang-btn{
-      opacity: 0;
-      transform: scale(0.96);
     }
 
     /* =========================================================
@@ -289,7 +240,6 @@
     .lang-btn{
       width: var(--btn-w);
       height: var(--btn-h);
-      transition: transform 120ms ease, opacity 220ms ease;
     }
 
     .lang-btn .bg-img{
@@ -304,86 +254,6 @@
     }
 
     .lang-btn .label-img{
-      height: 50%;
-      max-width: 82%;
-    }
-
-    /* =========================================================
-       10.5) Difficulty buttons layout (hidden until needed)
-       - Uses EASY.png / NORMAL.png / HARD.png assets
-       ========================================================= */
-    .diffs{
-      position: absolute;
-      left: 50%;
-      top: var(--diff-top);
-      transform: translate(-50%, -50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--diff-gap);
-      z-index: 6;
-
-      /* Hidden by default but still measurable */
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transition: opacity 180ms ease;
-    }
-
-    .diff-btn{
-      width: var(--btn-w);
-      height: var(--btn-h);
-    }
-
-    .diff-btn .bg-img{
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: fill;
-      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
-    }
-
-    .diff-btn .label-img{
-      height: 50%;
-      max-width: 82%;
-    }
-
-    /* Wider screens: difficulty buttons in a row (like the screenshot) */
-    @media (min-aspect-ratio: 4/3){
-      .diffs{
-        flex-direction: row;
-        top: var(--diff-top-wide);
-      }
-    }
-
-    /* Visible/enabled state (set by JS after the split animation completes) */
-    body.difficulty-mode .diffs.is-ready{
-      opacity: 1;
-      visibility: visible;
-      pointer-events: auto;
-    }
-
-    /* =========================================================
-       10.6) Ghost button used for the split animation
-       ========================================================= */
-    .ghost-btn{
-      position: absolute;
-      left: 0;
-      top: 0;
-      pointer-events: none;
-      z-index: 100;
-      transform-origin: 0 0;
-    }
-    .ghost-btn .bg-img{
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: fill;
-      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
-    }
-    .ghost-btn .label-img{
       height: 50%;
       max-width: 82%;
     }
@@ -450,9 +320,6 @@
     <!-- Desktop background image (used for all devices) -->
     <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="Background" />
 
-    <!-- Animation layer (ghost buttons for the split morph) -->
-    <div class="anim-layer" id="animLayer" aria-hidden="true"></div>
-
     <!-- UI overlay -->
     <div class="ui">
 
@@ -498,27 +365,6 @@
         </button>
       </div>
 
-      <!-- =====================================================
-           Difficulty buttons (hidden until a language is chosen)
-           - Uses EASY.png / NORMAL.png / HARD.png assets
-           ===================================================== -->
-      <div class="diffs" id="diffs" aria-label="Difficulty selection" aria-hidden="true">
-        <button class="diff-btn" data-diff="easy" aria-label="Easy">
-          <img class="bg-img" src="assets/Button.png" alt="" />
-          <img class="label-img" src="assets/EASY.png" alt="EASY" />
-        </button>
-
-        <button class="diff-btn" data-diff="normal" aria-label="Normal">
-          <img class="bg-img" src="assets/Button.png" alt="" />
-          <img class="label-img" src="assets/NORMAL.png" alt="NORMAL" />
-        </button>
-
-        <button class="diff-btn" data-diff="hard" aria-label="Hard">
-          <img class="bg-img" src="assets/Button.png" alt="" />
-          <img class="label-img" src="assets/HARD.png" alt="HARD" />
-        </button>
-      </div>
-
       <!-- Toast element controlled by JS -->
       <div class="toast" id="toast">Coming soon</div>
 
@@ -527,142 +373,58 @@
 
   <script>
     /* =========================================================
-       Difficulty flow (same file)
-       - Click language => selected language button splits into EASY/NORMAL/HARD
-       - Title shrinks and moves up at the same time
-       - Back: difficulty -> language, language -> index.html
+       Back button behavior
+       - Navigates to index.html
+       - Null-guard included to prevent runtime errors if markup changes
        ========================================================= */
-
-    const bodyEl = document.body;
     const backBtn = document.getElementById('backBtn');
-    const toast = document.getElementById('toast');
-    const animLayer = document.getElementById('animLayer');
-    const diffs = document.getElementById('diffs');
-
-    let toastTimer = null;
-    let isAnimating = false;
-
-    function showToast(msg){
-      if (!toast) return;
-      toast.textContent = msg;
-      toast.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 1200);
-    }
-
-    function createGhost(labelSrc){
-      if (!animLayer) return null;
-      const b = document.createElement('button');
-      b.className = 'ghost-btn';
-      b.setAttribute('aria-hidden', 'true');
-      b.innerHTML = `
-        <img class="bg-img" src="assets/Button.png" alt="" />
-        <img class="label-img" src="${labelSrc}" alt="" />
-      `;
-      b.style.transition = 'transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease';
-      b.style.transform = 'translate(0px, 0px) scale(1, 1)';
-      return b;
-    }
-
-    function setGhostRect(el, rect){
-      el.style.left = rect.left + 'px';
-      el.style.top = rect.top + 'px';
-      el.style.width = rect.width + 'px';
-      el.style.height = rect.height + 'px';
-    }
-
-    function enterDifficulty(langBtn){
-      if (isAnimating) return;
-      if (!langBtn || !diffs || !animLayer) return;
-      if (bodyEl.classList.contains('difficulty-mode')) return;
-
-      isAnimating = true;
-
-      const lang = langBtn.dataset.lang || '';
-      bodyEl.dataset.lang = lang;
-
-      // Capture the source position BEFORE any layout changes
-      const srcRect = langBtn.getBoundingClientRect();
-
-      // Title morph begins immediately via CSS variables
-      bodyEl.classList.add('difficulty-mode');
-      diffs.classList.remove('is-ready');
-      diffs.setAttribute('aria-hidden', 'true');
-
-      // Measure targets AFTER difficulty layout is applied
-      requestAnimationFrame(() => {
-        const targets = Array.from(diffs.querySelectorAll('.diff-btn'));
-        const targetRects = targets.map(b => b.getBoundingClientRect());
-
-        const ghosts = [
-          createGhost('assets/EASY.png'),
-          createGhost('assets/NORMAL.png'),
-          createGhost('assets/HARD.png')
-        ].filter(Boolean);
-
-        ghosts.forEach(g => {
-          setGhostRect(g, srcRect);
-          animLayer.appendChild(g);
-        });
-
-        // Kick off the split morph
-        requestAnimationFrame(() => {
-          ghosts.forEach((g, i) => {
-            const tr = targetRects[i];
-            if (!tr) return;
-            const dx = tr.left - srcRect.left;
-            const dy = tr.top - srcRect.top;
-            const sx = tr.width / srcRect.width;
-            const sy = tr.height / srcRect.height;
-            g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-          });
-        });
-
-        // After the morph ends, show the real difficulty buttons
-        window.setTimeout(() => {
-          ghosts.forEach(g => g.remove());
-          diffs.classList.add('is-ready');
-          diffs.setAttribute('aria-hidden', 'false');
-          isAnimating = false;
-        }, 460);
-      });
-    }
-
-    function exitDifficulty(){
-      if (isAnimating) return;
-      if (!diffs) return;
-      if (!bodyEl.classList.contains('difficulty-mode')) return;
-
-      isAnimating = true;
-      diffs.classList.remove('is-ready');
-      diffs.setAttribute('aria-hidden', 'true');
-      bodyEl.classList.remove('difficulty-mode');
-      bodyEl.dataset.lang = '';
-      window.setTimeout(() => { isAnimating = false; }, 460);
-    }
-
-    // Back button: difficulty -> language, language -> index
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        if (bodyEl.classList.contains('difficulty-mode')) {
-          exitDifficulty();
-        } else {
-          window.location.href = './index.html';
-        }
+        // Explicit navigation (instead of history.back) for consistent behavior
+        window.location.href = './index.html';
       });
     }
 
-    // Language -> Difficulty morph
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-      btn.addEventListener('click', () => enterDifficulty(btn));
-    });
+    /* =========================================================
+       Toast helper
+       - Shows a short “Coming soon (...)” message
+       - Auto-hides after a timeout
+       - Null-guard included
+       ========================================================= */
+    const toast = document.getElementById('toast');
+    let toastTimer = null;
 
-    // Difficulty button click (placeholder)
-    document.querySelectorAll('.diff-btn').forEach(btn => {
+    /**
+     * Show a toast message briefly.
+     * @param {string} msg - Message to display in the toast.
+     */
+    function showToast(msg){
+      // If toast element is missing, do nothing (prevents errors)
+      if (!toast) return;
+
+      // Set text and show
+      toast.textContent = msg;
+      toast.classList.add('show');
+
+      // Reset timer for rapid repeated clicks
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1200);
+    }
+
+    /* =========================================================
+       Language button click handlers
+       - Reads the language code from data-lang
+       - Currently shows a toast (placeholder)
+       - Future: navigate to play.html?lang=...
+       ========================================================= */
+    document.querySelectorAll('.lang-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const diff = btn.dataset.diff || '';
-        const lang = bodyEl.dataset.lang || '';
-        showToast(`Coming soon: ${lang.toUpperCase()} / ${diff.toUpperCase()}`);
+        window.location.href = './difficulty.html';
+
+        // Future expansion:
+        // window.location.href = './play.html?lang=' + lang;
       });
     });
   </script>

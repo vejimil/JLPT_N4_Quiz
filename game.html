@@ -31,7 +31,7 @@
       --title2-w: min(40vw, 360px);
 
       /* Language buttons (default) */
-      --btn-gap: 24px;
+      --btn-gap: 40px;
       --btn-w: 220px;
       --btn-h: 68px;
 
@@ -196,7 +196,7 @@
       position: absolute;
       left: 50%;
       top: calc(
-        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + clamp(14px, 2vh, 26px)
+        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + clamp(28px, 4vh, 52px)
       );
       transform: translateX(-50%);
       display: flex;
@@ -209,12 +209,12 @@
     }
 
     .title .line1{
-      height: clamp(46px, 6.2vh, 76px);
+      height: clamp(46px, 6.2vw, 76px);
       width: auto;
       max-width: 92vw;
     }
     .title .line2{
-      height: clamp(48px, 6.6vh, 79px); /* slightly bigger than line1 */
+      height: clamp(48px, 6.6vw, 79px); /* slightly bigger than line1 */
       width: auto;
       max-width: 92vw;
     }
@@ -265,7 +265,7 @@
       .langs{
         flex-direction: row;
         top: 74%;
-        gap: 32px;
+        gap: 48px;
       }
     }
 

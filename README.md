@@ -1,3 +1,3 @@
-1228할것: Game 크기 갑자기 줄어드는 부분 수정, buttons 위치 관계 수정. 비율 고정? 
+Buttons should be shrink as the page gets narrower.
 
 스페인어, 프랑스어 - 관사 추가하자는 의견.

@@ -270,7 +270,6 @@
     }
     body.merging-mode .langs .lang-btn{
       opacity: 0;
-      transform: scale(0.96);
     }
 
     body.difficulty-mode .langs{
@@ -278,7 +277,16 @@
     }
     body.difficulty-mode .langs .lang-btn{
       opacity: 0;
-      transform: scale(0.96);
+    }
+
+    /* Smooth re-appearance after merge-back */
+    @keyframes langReveal{
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    body.lang-reveal .langs{ pointer-events: none; }
+    body.lang-reveal .langs .lang-btn{
+      animation: langReveal 240ms ease both;
     }
 
     /* =========================================================
@@ -302,7 +310,8 @@
     .lang-btn{
       width: var(--btn-w);
       height: var(--btn-h);
-      transition: transform 120ms ease, opacity 220ms ease;
+      transition: transform 220ms ease, opacity 220ms ease;
+      will-change: transform, opacity;
     }
 
     .lang-btn .bg-img{
@@ -341,6 +350,11 @@
       visibility: hidden;
       pointer-events: none;
       transition: opacity 180ms ease;
+    }
+
+    /* Prep stage: make it visible (still transparent) so opacity can fade smoothly */
+    .diffs.is-prep{
+      visibility: visible;
     }
 
     .diff-btn{
@@ -387,6 +401,7 @@
       pointer-events: none;
       z-index: 100;
       transform-origin: 0 0;
+      will-change: transform, opacity;
     }
     .ghost-btn .bg-img{
       position: absolute;
@@ -399,7 +414,12 @@
     .ghost-btn .label-img{
       height: 50%;
       max-width: 82%;
+      opacity: 0;
+      transition: opacity 160ms ease;
     }
+
+    .ghost-btn.show-label .label-img{ opacity: 1; }
+    .ghost-btn.fade-out{ opacity: 0; }
 
     /* =========================================================
        11) Wider screens: use row layout for language buttons
@@ -591,6 +611,9 @@
 
       isAnimating = true;
 
+      // Clear any reveal animation class from previous transitions
+      bodyEl.classList.remove('lang-reveal');
+
       const lang = langBtn.dataset.lang || '';
       bodyEl.dataset.lang = lang;
 
@@ -600,6 +623,7 @@
       // Title morph begins immediately via CSS variables
       bodyEl.classList.add('difficulty-mode');
       diffs.classList.remove('is-ready');
+      diffs.classList.remove('is-prep');
       diffs.setAttribute('aria-hidden', 'true');
 
       // Measure targets AFTER difficulty layout is applied
@@ -631,13 +655,25 @@
           });
         });
 
-        // After the morph ends, show the real difficulty buttons
+        // Show labels after the split starts so text doesn't overlap at the beginning
         window.setTimeout(() => {
-          ghosts.forEach(g => g.remove());
+          ghosts.forEach(g => g.classList.add('show-label'));
+        }, 120);
+
+        // Crossfade ghosts -> real difficulty buttons to avoid end-of-animation flicker
+        window.setTimeout(() => {
+          diffs.classList.add('is-prep');
           diffs.classList.add('is-ready');
           diffs.setAttribute('aria-hidden', 'false');
+          ghosts.forEach(g => g.classList.add('fade-out'));
+        }, 320);
+
+        // Cleanup after transitions finish
+        window.setTimeout(() => {
+          ghosts.forEach(g => g.remove());
+          diffs.classList.remove('is-prep');
           isAnimating = false;
-        }, 460);
+        }, 480);
       });
     }
 
@@ -663,9 +699,8 @@
         return;
       }
 
-      // Capture source rects (difficulty buttons) and destination rect (the chosen language button)
+      // Capture source rects (difficulty buttons)
       const srcRects = diffBtns.map(b => b.getBoundingClientRect());
-      const dstRect = langBtn.getBoundingClientRect();
 
       // Create 3 ghosts at the difficulty button positions
       const ghosts = [
@@ -676,39 +711,63 @@
 
       ghosts.forEach((g, i) => {
         setGhostRect(g, srcRects[i]);
+        g.classList.add('show-label');
         animLayer.appendChild(g);
       });
 
-      // Hide real difficulty buttons immediately
+      // Fade out real difficulty buttons (ghosts sit exactly on top, so no visual gap)
+      diffs.classList.add('is-prep');
       diffs.classList.remove('is-ready');
       diffs.setAttribute('aria-hidden', 'true');
 
-      // Keep language buttons hidden while we merge (otherwise they'd pop in behind the ghosts)
+      // Keep language buttons hidden while we merge
       bodyEl.classList.add('merging-mode');
 
-      // Start title morph back to the Language screen
-      bodyEl.classList.remove('difficulty-mode');
-
-      // Kick off the merge animation
+      // Remove difficulty-mode on the next frame (avoids a 1-frame flash)
       requestAnimationFrame(() => {
-        ghosts.forEach((g, i) => {
-          const sr = srcRects[i];
-          if (!sr) return;
-          const dx = dstRect.left - sr.left;
-          const dy = dstRect.top - sr.top;
-          const sx = dstRect.width / sr.width;
-          const sy = dstRect.height / sr.height;
-          g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-        });
-      });
+        bodyEl.classList.remove('difficulty-mode');
 
-      // Cleanup
-      window.setTimeout(() => {
-        ghosts.forEach(g => g.remove());
-        bodyEl.classList.remove('merging-mode');
-        bodyEl.dataset.lang = '';
-        isAnimating = false;
-      }, 460);
+        // Destination rect after layout returns to Language screen (no transform-based distortion)
+        const dstRect = langBtn.getBoundingClientRect();
+
+        // Kick off the merge animation
+        requestAnimationFrame(() => {
+          ghosts.forEach((g, i) => {
+            const sr = srcRects[i];
+            if (!sr) return;
+            const dx = dstRect.left - sr.left;
+            const dy = dstRect.top - sr.top;
+            const sx = dstRect.width / sr.width;
+            const sy = dstRect.height / sr.height;
+            g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+          });
+        });
+
+        // Fade labels out before they start overlapping near the end
+        window.setTimeout(() => {
+          ghosts.forEach(g => g.classList.remove('show-label'));
+        }, 220);
+
+        // Crossfade ghosts out while language buttons fade/slide in
+        window.setTimeout(() => {
+          ghosts.forEach(g => g.classList.add('fade-out'));
+          bodyEl.classList.remove('merging-mode');
+          bodyEl.classList.add('lang-reveal');
+        }, 320);
+
+        // Cleanup
+        window.setTimeout(() => {
+          ghosts.forEach(g => g.remove());
+          diffs.classList.remove('is-prep');
+          bodyEl.dataset.lang = '';
+          isAnimating = false;
+        }, 500);
+
+        // Remove reveal class after it plays
+        window.setTimeout(() => {
+          bodyEl.classList.remove('lang-reveal');
+        }, 560);
+      });
     }
 
     // Back button: difficulty -> language, language -> index

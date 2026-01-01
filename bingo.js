@@ -62,7 +62,6 @@
   };
 
   // Pattern templates (indices in row-major)
-  // Each template MUST have exactly cfg.target indices.
   const PATTERNS_3 = [
     [0, 1, 3, 4],
     [1, 2, 4, 5],
@@ -100,7 +99,6 @@
     if (size === 4 && target === 6) {
       return PATTERNS_4_6[Math.floor(Math.random() * PATTERNS_4_6.length)].slice();
     }
-    // fallback: random positions
     const total = size * size;
     const idxs = Array.from({length: total}, (_, i) => i);
     shuffle(idxs);
@@ -110,9 +108,13 @@
   // ----------------------------
   // 2) Vocab adapters
   // ----------------------------
+  // NOTE: vocab-*.js define globals using `const VOCAB...`.
+  // Those are *not* available as window.VOCAB (only as lexical globals).
+  // So we must read them via `typeof VOCAB !== 'undefined'` checks.
   function getPairs(lang){
     if (lang === 'fr') {
-      const pool = (window.VOCAB_FR || []).filter(v => v && v.fr && v.en);
+      const SRC = (typeof VOCAB_FR !== 'undefined') ? VOCAB_FR : (globalThis.VOCAB_FR || []);
+      const pool = (SRC || []).filter(v => v && v.fr && v.en);
       return pool.map(v => ({
         id: v.id,
         q1: String(v.fr),
@@ -122,7 +124,8 @@
     }
 
     if (lang === 'es') {
-      const pool = (window.VOCAB_ES || []).filter(v => v && v.es && v.en);
+      const SRC = (typeof VOCAB_ES !== 'undefined') ? VOCAB_ES : (globalThis.VOCAB_ES || []);
+      const pool = (SRC || []).filter(v => v && v.es && v.en);
       return pool.map(v => ({
         id: v.id,
         q1: String(v.es),
@@ -132,7 +135,8 @@
     }
 
     // ja (default)
-    const pool = (window.VOCAB || []).filter(v => v && v.jpKana && v.krMeaning);
+    const SRC = (typeof VOCAB !== 'undefined') ? VOCAB : (globalThis.VOCAB || []);
+    const pool = (SRC || []).filter(v => v && v.jpKana && v.krMeaning);
     return pool.map(v => {
       const kanji = (v.jpKanji || '').trim();
       const kana = (v.jpKana || '').trim();
@@ -162,7 +166,6 @@
   const backBtn = $('#backBtn');
   const retryBtn = $('#retryBtn');
 
-  // Guard
   if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp) return;
 
   // ----------------------------
@@ -182,8 +185,6 @@
   let startTs = 0;
   let rafId = 0;
 
-  // Board model
-  // tiles[i] = { pair, isTarget, solved }
   const tiles = [];
   let targetIdxs = [];
   let remainingTargets = 0;
@@ -203,29 +204,25 @@
   function makeTileButton(i, pair){
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'tile-btn';
+    // Match bingo.html CSS selectors
+    btn.className = 'tile';
     btn.dataset.idx = String(i);
 
     const img = document.createElement('img');
-    img.className = 'tile-img';
     img.src = 'assets/Bingo_Panel_Blue.png';
     img.alt = '';
 
     const label = document.createElement('div');
-    label.className = 'tile-text';
+    label.className = 'txt';
 
-    // 2-line support for JA (kanji + kana)
-    if (pair.q2) {
-      const d1 = document.createElement('div');
-      d1.className = 't1';
-      d1.textContent = pair.q1;
-      const d2 = document.createElement('div');
-      d2.className = 't2';
-      d2.textContent = pair.q2;
-      label.appendChild(d1);
-      label.appendChild(d2);
-    } else {
+    if (pair && pair.q2) {
       label.textContent = pair.q1;
+      const sub = document.createElement('span');
+      sub.className = 'sub';
+      sub.textContent = pair.q2;
+      label.appendChild(sub);
+    } else {
+      label.textContent = pair ? pair.q1 : '';
     }
 
     btn.appendChild(img);
@@ -235,9 +232,9 @@
   }
 
   function setTileSolved(i){
-    const btn = elBoard.querySelector(`.tile-btn[data-idx="${i}"]`);
+    const btn = elBoard.querySelector(`.tile[data-idx="${i}"]`);
     if (!btn) return;
-    const img = $('.tile-img', btn);
+    const img = $('img', btn);
     if (img) img.src = 'assets/Bingo_Panel_Red.png';
     btn.classList.add('is-solved');
   }
@@ -269,19 +266,16 @@
     elAnswers.innerHTML = '';
     elAnswers.style.setProperty('--ans-cols', '2');
 
-    // correct choices: one per target tile
     const correct = targetIdxs.map(idx => ({
       tileIdx: idx,
-      text: tiles[idx].pair.a,
+      text: (tiles[idx] && tiles[idx].pair) ? tiles[idx].pair.a : '',
       isTarget: true,
     }));
 
-    // decoys: from non-target tiles on the board
     const decoyPool = tiles
-      .map((t, idx) => ({ tileIdx: idx, text: t.pair.a, isTarget: false }))
+      .map((t, idx) => ({ tileIdx: idx, text: (t && t.pair) ? t.pair.a : '', isTarget: false }))
       .filter(x => !targetIdxs.includes(x.tileIdx));
 
-    // Ensure uniqueness by text to avoid duplicates in buttons
     const usedText = new Set(correct.map(c => c.text));
     const decoys = [];
     shuffle(decoyPool);
@@ -294,21 +288,20 @@
 
     const all = shuffle(correct.concat(decoys));
 
-    // If we couldn't fill enough (duplicate meanings), just shrink the grid naturally.
     all.forEach(item => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'ans-btn';
+      b.className = 'ui-btn ans-btn clickable';
       b.dataset.tileIdx = String(item.tileIdx);
       b.dataset.isTarget = item.isTarget ? '1' : '0';
 
       const img = document.createElement('img');
-      img.className = 'ans-img';
+      img.className = 'bg-img';
       img.src = 'assets/Bingo_Button_Answer.png';
       img.alt = '';
 
       const t = document.createElement('div');
-      t.className = 'ans-text';
+      t.className = 'label';
       t.textContent = item.text;
 
       b.appendChild(img);
@@ -333,22 +326,30 @@
     overlay.setAttribute('aria-hidden', 'true');
   }
 
-  function setPaused(v){
-    paused = v;
-    if (paused) {
-      openOverlay('Paused');
-    } else {
-      closeOverlay();
-      // resume timer
-      if (!done) {
-        // shift start time so remaining time is preserved
-        const elapsed = performance.now() - startTs;
-        // 'elapsed' is always recomputed from startTs, so we keep remaining by storing it
-      }
-    }
+  function setTimerCovered(frac){
+    const p = clamp(frac, 0, 1) * 100;
+    elTimerMask.style.width = p.toFixed(2) + '%';
   }
 
-  // We keep remaining time in a variable to support pausing cleanly
+  function loseHeart(){
+    hearts -= 1;
+    hearts = clamp(hearts, 0, 3);
+    renderHearts();
+    if (hearts <= 0) gameOver('Game Over');
+  }
+
+  function gameOver(title){
+    if (done) return;
+    done = true;
+    openOverlay(title);
+  }
+
+  function win(){
+    if (done) return;
+    done = true;
+    openOverlay('BINGO!');
+  }
+
   let remainingMs = 0;
 
   function startTimer(){
@@ -371,40 +372,12 @@
       setTimerCovered(covered);
 
       if (remainingMs <= 0) {
-        gameOver('Time\u2019s up');
+        gameOver('Time’s up');
         return;
       }
     }
 
     rafId = requestAnimationFrame(tick);
-  }
-
-  function setTimerCovered(frac){
-    const p = clamp(frac, 0, 1) * 100;
-    // mask width grows from the right
-    elTimerMask.style.width = p.toFixed(2) + '%';
-  }
-
-  function loseHeart(){
-    hearts -= 1;
-    hearts = clamp(hearts, 0, 3);
-    renderHearts();
-
-    if (hearts <= 0) {
-      gameOver('Game Over');
-    }
-  }
-
-  function gameOver(title){
-    if (done) return;
-    done = true;
-    openOverlay(title);
-  }
-
-  function win(){
-    if (done) return;
-    done = true;
-    openOverlay('BINGO!');
   }
 
   function reset(){
@@ -415,7 +388,25 @@
     closeOverlay();
 
     // Build fresh board
-    const pairs = getPairs(lang);
+    let pairs = getPairs(lang);
+
+    // Safety: if vocab failed to load or is too small, inject placeholder pairs
+    // so the UI still renders (and you can spot the console/network issue).
+    const minNeeded = totalTiles + cfg.choices;
+    if (!pairs || pairs.length < minNeeded) {
+      const base = (pairs || []).slice();
+      const need = Math.max(0, minNeeded - base.length);
+      for (let i = 0; i < need; i++) {
+        base.push({
+          id: `dummy-${Date.now()}-${i}`,
+          q1: `WORD ${i + 1}`,
+          q2: '',
+          a: `MEANING ${i + 1}`,
+        });
+      }
+      pairs = base;
+    }
+
     const chosen = pickUnique(pairs, totalTiles);
 
     targetIdxs = pickPattern(gridSize, cfg.target);
@@ -434,7 +425,6 @@
     renderBoard();
     renderAnswers();
 
-    // start timer
     setTimerCovered(0);
     startTimer();
   }
@@ -443,7 +433,6 @@
   // 7) Input
   // ----------------------------
   function bind(){
-    // Pause
     if (pauseBtn) {
       pauseBtn.addEventListener('click', () => {
         if (done) return;
@@ -453,7 +442,6 @@
       });
     }
 
-    // Overlay buttons
     if (resumeBtn) resumeBtn.addEventListener('click', () => {
       if (done && overlayTitle.textContent !== 'Paused') return;
       paused = false;
@@ -463,7 +451,6 @@
     if (retryBtn) retryBtn.addEventListener('click', () => reset());
 
     if (backBtn) backBtn.addEventListener('click', () => {
-      // back to game.html (keep lang)
       const url = new URL(window.location.href);
       url.pathname = url.pathname.replace(/bingo\.html$/i, 'game.html');
       url.searchParams.delete('diff');
@@ -471,7 +458,6 @@
       window.location.href = url.toString();
     });
 
-    // Answers click (event delegation)
     elAnswers.addEventListener('click', (e) => {
       const btn = e.target && e.target.closest ? e.target.closest('.ans-btn') : null;
       if (!btn) return;
@@ -484,17 +470,14 @@
       if (Number.isNaN(tileIdx) || tileIdx < 0 || tileIdx >= totalTiles) return;
 
       if (!isTarget) {
-        // Wrong: outside the shown pattern
         btn.disabled = true;
         btn.classList.add('is-wrong');
         loseHeart();
         return;
       }
 
-      // Correct
       const t = tiles[tileIdx];
       if (!t || !t.isTarget || t.solved) {
-        // already solved / mismatch
         btn.disabled = true;
         btn.classList.add('is-wrong');
         loseHeart();
@@ -510,7 +493,6 @@
       if (remainingTargets <= 0) win();
     });
 
-    // Prevent double-tap zoom on iOS
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   }
 
@@ -518,13 +500,10 @@
   // 8) Boot
   // ----------------------------
   function boot(){
-    // Set board sizes
     elExample.style.setProperty('--grid-size', String(gridSize));
     elBoard.style.setProperty('--grid-size', String(gridSize));
 
-    // Ensure hearts exist
     if ($$('.hp-heart', elHp).length === 0) {
-      // Bingo.html already includes 3 hearts, so this is just a safety net.
       for (let i = 0; i < 3; i++) {
         const img = document.createElement('img');
         img.className = 'hp-heart';

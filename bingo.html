@@ -14,6 +14,7 @@
 
       --ui-pad-x: clamp(10px, 2vw, 20px);
       --ui-pad-y: clamp(10px, 2vh, 20px);
+      --gap: clamp(10px, 2vw, 24px);
 
       --pause-w: clamp(120px, 18vw, 190px);
       --pause-h: clamp(40px, 6vw, 62px);
@@ -21,18 +22,15 @@
       --title-h: clamp(44px, 6.4vw, 86px);
       --hp-h: clamp(34px, 5vw, 62px);
 
-      --layout-gap: clamp(14px, 2.6vw, 34px);
+      /* Board sizes (main bigger, example smaller) */
+      --tile: clamp(76px, 8.6vw, 128px);
+      --ex-tile: clamp(28px, 3.2vw, 46px);
 
-      --cell: clamp(60px, 7vw, 98px);
-      --ex-cell: clamp(22px, 3vw, 36px);
+      --grid-gap: clamp(10px, 1.2vw, 16px);
+      --ex-gap: clamp(8px, 1vw, 12px);
 
-      --ans-w: clamp(160px, 22vw, 270px);
-      --ans-h: clamp(56px, 7vw, 86px);
-
-      --timer-w: min(90vw, 980px);
-
-      --tile-text: clamp(10px, 1.2vw, 14px);
-      --tile-text-small: clamp(9px, 1vw, 12px);
+      /* Answers column width (smaller than before) */
+      --ans-w: clamp(220px, 20vw, 320px);
     }
 
     html, body{
@@ -79,6 +77,10 @@
         calc(var(--ui-pad-y) + var(--safe-bottom))
         calc(var(--ui-pad-x) + var(--safe-left));
       pointer-events: none;
+
+      display: grid;
+      grid-template-rows: auto 1fr auto; /* topbar / main / timer */
+      row-gap: var(--gap);
     }
 
     /* clickable areas */
@@ -123,7 +125,7 @@
       display: grid;
       grid-template-columns: auto 1fr auto;
       align-items: start;
-      column-gap: var(--layout-gap);
+      column-gap: var(--gap);
     }
 
     .pause-btn{
@@ -153,50 +155,56 @@
       width: auto;
     }
 
-    /* Middle layout */
-    .layout{
-      margin-top: clamp(16px, 3vh, 28px);
+    /* ===== Main layout (center board) ===== */
+    .play-layout{
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 1fr auto 1fr; /* main board stays center */
       align-items: center;
-      gap: var(--layout-gap);
+      justify-items: center;
+      column-gap: var(--gap);
+      min-height: 0; /* avoid overflow weirdness */
     }
 
-    .example-wrap,
-    .board-wrap,
-    .answers-wrap{
-      display: flex;
+    .panel-example{ justify-self: end; }
+    .panel-main{ justify-self: center; }
+    .panel-answers{ justify-self: start; width: min(100%, var(--ans-w)); }
+
+    /* ===== Example board ===== */
+    #exampleBoard.ex-grid{
+      display: grid;
+      grid-template-columns: repeat(var(--grid-size), var(--ex-tile));
+      gap: var(--ex-gap);
       justify-content: center;
-      align-items: center;
-    }
-
-    /* Boards */
-    .board{
-      display: grid;
-      grid-template-columns: repeat(var(--grid-size), var(--cell));
-      grid-auto-rows: var(--cell);
-      gap: clamp(10px, 1.6vw, 18px);
       align-content: center;
-      justify-content: center;
     }
 
-    .board.example{
-      grid-template-columns: repeat(var(--grid-size), var(--ex-cell));
-      grid-auto-rows: var(--ex-cell);
-      gap: clamp(6px, 0.9vw, 10px);
+    .ex-tile{
+      width: var(--ex-tile);
+      height: var(--ex-tile);
+      display: block;
+    }
+
+    /* ===== Main board ===== */
+    #mainBoard.main-grid{
+      display: grid;
+      grid-template-columns: repeat(var(--grid-size), var(--tile));
+      gap: var(--grid-gap);
+      justify-content: center;
+      align-content: center;
     }
 
     .tile{
-      width: 100%;
-      height: 100%;
       position: relative;
-      border: 0;
+      width: var(--tile);
+      height: var(--tile);
       padding: 0;
+      border: 0;
       background: transparent;
       cursor: pointer;
       pointer-events: auto;
       transition: transform 120ms ease;
       touch-action: manipulation;
+      transform: translateZ(0);
     }
     .tile:active{ transform: scale(0.98); }
     @media (hover:hover) and (pointer:fine){
@@ -204,68 +212,81 @@
     }
 
     .tile img{
-      position: absolute;
-      inset: 0;
       width: 100%;
       height: 100%;
+      display: block;
       object-fit: contain;
     }
 
+    /* bigger text + allow line breaks */
     .tile .txt{
       position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 88%;
+      inset: 10%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
       text-align: center;
       font-weight: 800;
       color: rgba(255,255,255,0.92);
       text-shadow:
         0 2px 0 rgba(0,0,0,0.6),
         0 0 6px rgba(0,0,0,0.35);
-      font-size: var(--tile-text);
+
+      font-size: clamp(14px, 1.55vw, 22px);
       line-height: 1.15;
+
+      white-space: normal;
+      word-break: break-word;
+      overflow: hidden;
       pointer-events: none;
-      word-break: keep-all;
     }
 
     .tile .txt .sub{
       display: block;
-      margin-top: 2px;
-      font-size: var(--tile-text-small);
+      margin-top: 0.25em;
+      font-size: 0.85em;
       opacity: 0.95;
       font-weight: 700;
     }
 
-    /* Answers */
-    .answers{
+    /* ===== Answers ===== */
+    #answers.answers-grid{
       display: grid;
-      grid-template-columns: repeat(2, var(--ans-w));
-      gap: clamp(10px, 1.6vw, 18px);
-      justify-content: center;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(10px, 1.2vw, 14px);
+      width: 100%;
       align-content: center;
+      justify-content: center;
     }
 
     .ans-btn{
-      width: var(--ans-w);
-      height: var(--ans-h);
+      width: 100%;
+      aspect-ratio: 2.4 / 1;
     }
+
     .ans-btn .label{
       position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 88%;
+      inset: 14% 10%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
       text-align: center;
       font-weight: 900;
       color: rgba(255,255,255,0.95);
       text-shadow:
         0 2px 0 rgba(0,0,0,0.65),
         0 0 6px rgba(0,0,0,0.35);
-      font-size: clamp(12px, 1.25vw, 16px);
-      line-height: 1.1;
+
+      font-size: clamp(14px, 1.35vw, 18px);
+      line-height: 1.15;
+
+      white-space: normal;
+      word-break: break-word;
+      overflow: hidden;
       pointer-events: none;
-      word-break: keep-all;
     }
 
     .ans-btn[disabled]{
@@ -275,44 +296,79 @@
       transform: none !important;
     }
 
-    /* Timer */
-    .timer-wrap{
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: calc(var(--ui-pad-y) + var(--safe-bottom));
-      width: var(--timer-w);
+    /* ===== Animations (next-step polish) ===== */
+    @keyframes tileFlash {
+      0%   { filter: brightness(1); }
+      50%  { filter: brightness(1.8); }
+      100% { filter: brightness(1); }
+    }
+
+    @keyframes ansShake {
+      0%   { transform: translateX(0); }
+      25%  { transform: translateX(-4px); }
+      50%  { transform: translateX(4px); }
+      75%  { transform: translateX(-3px); }
+      100% { transform: translateX(0); }
+    }
+
+    @keyframes ansPop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes wrongFlash {
+      0%   { filter: brightness(1) saturate(1); }
+      50%  { filter: brightness(1.25) saturate(1.4); }
+      100% { filter: brightness(1) saturate(1); }
+    }
+
+    .tile.flash img{
+      animation: tileFlash 220ms steps(2, end) 1;
+    }
+
+    .ans-btn.is-correct{
+      animation: ansPop 180ms ease-out 1;
+    }
+
+    .ans-btn.is-wrong{
+      animation: ansShake 260ms steps(2, end) 1;
+    }
+    .ans-btn.is-wrong .bg-img{
+      animation: wrongFlash 260ms steps(2, end) 1;
+    }
+
+    /* ===== Timer (text becomes black from the RIGHT) ===== */
+    .timer-bar{
+      display: grid;
+      justify-items: center;
+      padding-bottom: max(10px, var(--safe-bottom));
       pointer-events: none;
     }
 
-    .timer{
+    .timer-wrap{
       position: relative;
-      width: 100%;
-      height: auto;
+      height: clamp(34px, 6vh, 52px);
     }
 
-    .timer .base{
-      width: 100%;
-      height: auto;
+    .timer-img{
+      height: 100%;
+      width: auto;
       display: block;
     }
 
-    .timer .mask{
+    .timer-mask{
       position: absolute;
       top: 0;
       right: 0;
       height: 100%;
-      width: var(--covered, 0%);
+      width: 0%;
       overflow: hidden;
     }
-
-    .timer .mask img{
+    .timer-mask .timer-img{
       position: absolute;
       top: 0;
       right: 0;
-      width: 100%;
-      height: auto;
-      display: block;
     }
 
     /* Overlay */
@@ -362,35 +418,35 @@
       font-weight: 800;
     }
 
-    /* Mobile: stack vertically */
-    @media (max-width: 860px), (max-aspect-ratio: 4/3){
+    /* ===== Responsive: stack vertically ===== */
+    @media (max-width: 900px){
       :root{
-        --layout-gap: clamp(10px, 2.4vw, 18px);
-        --cell: clamp(56px, 16vw, 86px);
-        --ans-w: clamp(150px, 42vw, 240px);
+        --tile: clamp(72px, 18vw, 124px);
+        --ex-tile: clamp(26px, 7.2vw, 44px);
+        --ans-w: 100%;
       }
 
-      .layout{
+      .play-layout{
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto;
+        row-gap: var(--gap);
+      }
+
+      .panel-example, .panel-main, .panel-answers{
+        justify-self: center;
+        width: 100%;
+        display: grid;
         justify-items: center;
       }
 
-      .example-wrap{ order: 1; }
-      .board-wrap{ order: 2; }
-      .answers-wrap{ order: 3; }
-
-      .answers{
-        grid-template-columns: repeat(2, var(--ans-w));
+      #answers.answers-grid{
+        max-width: 560px;
       }
+    }
 
-      .topbar{
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-      }
-
-      .timer-wrap{
-        width: min(94vw, 680px);
+    @media (max-width: 520px){
+      #answers.answers-grid{
+        grid-template-columns: 1fr;
+        max-width: 420px;
       }
     }
   </style>
@@ -415,29 +471,27 @@
         <div class="hp" id="hp" aria-label="HP"></div>
       </div>
 
-      <!-- Middle -->
-      <div class="layout">
-        <div class="example-wrap">
-          <div class="board example" id="exampleBoard" aria-label="Pattern preview"></div>
-        </div>
+      <!-- Main layout -->
+      <div class="play-layout">
+        <section class="panel panel-example">
+          <div id="exampleBoard" class="ex-grid" aria-label="Pattern preview"></div>
+        </section>
 
-        <div class="board-wrap">
-          <div class="board" id="mainBoard" aria-label="Bingo board"></div>
-        </div>
+        <section class="panel panel-main">
+          <div id="mainBoard" class="main-grid" aria-label="Bingo board"></div>
+        </section>
 
-        <div class="answers-wrap">
-          <div class="answers" id="answers" aria-label="Answer choices"></div>
-        </div>
+        <section class="panel panel-answers">
+          <div id="answers" class="answers-grid" aria-label="Answer choices"></div>
+        </section>
       </div>
 
-      <!-- Timer bottom -->
-      <div class="timer-wrap">
-        <div class="timer" id="timer">
-          <!-- base (the red one) -->
-          <img class="base" src="assets/TIMEISRUNNINGOUT_White.png" alt="" />
-          <!-- mask that grows from the RIGHT (black cover) -->
-          <div class="mask" id="timerMask">
-            <img src="assets/TIMEISRUNNINGOUT_Black.png" alt="" />
+      <!-- Timer bottom (black covers from RIGHT) -->
+      <div class="timer-bar">
+        <div class="timer-wrap">
+          <img class="timer-img" src="assets/TIMEISRUNNINGOUT_Red.png" alt="" onerror="this.onerror=null;this.src='assets/TIMEISRUNNINGOUT_White.png';" />
+          <div id="timerMask" class="timer-mask">
+            <img class="timer-img" src="assets/TIMEISRUNNINGOUT_Black.png" alt="" />
           </div>
         </div>
       </div>

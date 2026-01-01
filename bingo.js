@@ -1,9 +1,12 @@
 /*
-  Bingo gameplay (MVP)
-  - Desktop layout: example board (left) / main board (center) / answers (right)
-  - Mobile layout: stacked (example -> main -> answers)
-  - Pattern is shown on the example board; player must pick the answers that belong to the pattern.
-  - Wrong pick costs 1 heart. Time-out => game over.
+  Bingo gameplay (MVP + UI polish)
+  - Desktop: example (left) / main board (center) / answers (right)
+  - Mobile: stacked (example -> main -> answers -> timer)
+
+  Next-step polish included:
+  1) Correct pick: tile flashes (pixel-like)
+  2) Wrong pick: answer shakes + flashes
+  3) Text auto-fit: shrink font until it fits the box
 
   Query params:
     bingo.html?lang=ja|fr|es&diff=easy|normal|hard
@@ -99,6 +102,7 @@
     if (size === 4 && target === 6) {
       return PATTERNS_4_6[Math.floor(Math.random() * PATTERNS_4_6.length)].slice();
     }
+
     const total = size * size;
     const idxs = Array.from({length: total}, (_, i) => i);
     shuffle(idxs);
@@ -109,32 +113,21 @@
   // 2) Vocab adapters
   // ----------------------------
   // NOTE: vocab-*.js define globals using `const VOCAB...`.
-  // Those are *not* available as window.VOCAB (only as lexical globals).
-  // So we must read them via `typeof VOCAB !== 'undefined'` checks.
+  // These are NOT properties on window, so access via `typeof VOCAB !== 'undefined'`.
   function getPairs(lang){
     if (lang === 'fr') {
       const SRC = (typeof VOCAB_FR !== 'undefined') ? VOCAB_FR : (globalThis.VOCAB_FR || []);
       const pool = (SRC || []).filter(v => v && v.fr && v.en);
-      return pool.map(v => ({
-        id: v.id,
-        q1: String(v.fr),
-        q2: '',
-        a: String(v.en),
-      }));
+      return pool.map(v => ({ id: v.id, q1: String(v.fr), q2: '', a: String(v.en) }));
     }
 
     if (lang === 'es') {
       const SRC = (typeof VOCAB_ES !== 'undefined') ? VOCAB_ES : (globalThis.VOCAB_ES || []);
       const pool = (SRC || []).filter(v => v && v.es && v.en);
-      return pool.map(v => ({
-        id: v.id,
-        q1: String(v.es),
-        q2: '',
-        a: String(v.en),
-      }));
+      return pool.map(v => ({ id: v.id, q1: String(v.es), q2: '', a: String(v.en) }));
     }
 
-    // ja (default)
+    // ja
     const SRC = (typeof VOCAB !== 'undefined') ? VOCAB : (globalThis.VOCAB || []);
     const pool = (SRC || []).filter(v => v && v.jpKana && v.krMeaning);
     return pool.map(v => {
@@ -184,13 +177,60 @@
 
   let startTs = 0;
   let rafId = 0;
+  let remainingMs = 0;
 
   const tiles = [];
   let targetIdxs = [];
   let remainingTargets = 0;
 
   // ----------------------------
-  // 5) Rendering
+  // 5) Text auto-fit (polish #3)
+  // ----------------------------
+  let fitTimer = 0;
+
+  function fitText(el, minPx){
+    if (!el) return;
+    const cs = window.getComputedStyle(el);
+    let fs = parseFloat(cs.fontSize);
+    if (!fs || Number.isNaN(fs)) return;
+
+    // Reset any previous inline size so we start from CSS clamp
+    el.style.fontSize = '';
+    fs = parseFloat(window.getComputedStyle(el).fontSize);
+
+    let guard = 0;
+    while (guard < 24 && fs > minPx) {
+      // small tolerance (text-shadow etc.)
+      const tooTall = el.scrollHeight > el.clientHeight + 2;
+      const tooWide = el.scrollWidth > el.clientWidth + 2;
+      if (!tooTall && !tooWide) break;
+      fs -= 1;
+      el.style.fontSize = fs + 'px';
+      guard += 1;
+    }
+  }
+
+  function fitAllText(){
+    // Tiles
+    $$('#mainBoard .txt').forEach(el => fitText(el, 11));
+    // Answers
+    $$('#answers .label').forEach(el => fitText(el, 12));
+  }
+
+  function scheduleFit(){
+    window.clearTimeout(fitTimer);
+    // Wait a moment so layout settles (images / grid)
+    fitTimer = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        fitAllText();
+      });
+    }, 50);
+  }
+
+  window.addEventListener('resize', scheduleFit);
+
+  // ----------------------------
+  // 6) Rendering
   // ----------------------------
   function renderHearts(){
     const imgs = $$('.hp-heart', elHp);
@@ -204,7 +244,6 @@
   function makeTileButton(i, pair){
     const btn = document.createElement('button');
     btn.type = 'button';
-    // Match bingo.html CSS selectors
     btn.className = 'tile';
     btn.dataset.idx = String(i);
 
@@ -231,12 +270,22 @@
     return btn;
   }
 
+  function flashTile(btn){
+    if (!btn) return;
+    btn.classList.remove('flash');
+    // reflow to retrigger
+    void btn.offsetWidth;
+    btn.classList.add('flash');
+    window.setTimeout(() => btn.classList.remove('flash'), 260);
+  }
+
   function setTileSolved(i){
     const btn = elBoard.querySelector(`.tile[data-idx="${i}"]`);
     if (!btn) return;
     const img = $('img', btn);
     if (img) img.src = 'assets/Bingo_Panel_Red.png';
     btn.classList.add('is-solved');
+    flashTile(btn); // polish #1
   }
 
   function renderBoard(){
@@ -264,7 +313,6 @@
 
   function renderAnswers(){
     elAnswers.innerHTML = '';
-    elAnswers.style.setProperty('--ans-cols', '2');
 
     const correct = targetIdxs.map(idx => ({
       tileIdx: idx,
@@ -281,7 +329,7 @@
     shuffle(decoyPool);
     for (const d of decoyPool) {
       if (decoys.length >= Math.max(0, cfg.choices - correct.length)) break;
-      if (usedText.has(d.text)) continue;
+      if (!d.text || usedText.has(d.text)) continue;
       usedText.add(d.text);
       decoys.push(d);
     }
@@ -311,7 +359,7 @@
   }
 
   // ----------------------------
-  // 6) Game flow
+  // 7) Overlay / timer
   // ----------------------------
   function openOverlay(title){
     if (!overlay) return;
@@ -330,27 +378,6 @@
     const p = clamp(frac, 0, 1) * 100;
     elTimerMask.style.width = p.toFixed(2) + '%';
   }
-
-  function loseHeart(){
-    hearts -= 1;
-    hearts = clamp(hearts, 0, 3);
-    renderHearts();
-    if (hearts <= 0) gameOver('Game Over');
-  }
-
-  function gameOver(title){
-    if (done) return;
-    done = true;
-    openOverlay(title);
-  }
-
-  function win(){
-    if (done) return;
-    done = true;
-    openOverlay('BINGO!');
-  }
-
-  let remainingMs = 0;
 
   function startTimer(){
     remainingMs = cfg.timeSec * 1000;
@@ -372,12 +399,34 @@
       setTimerCovered(covered);
 
       if (remainingMs <= 0) {
-        gameOver('Time’s up');
+        gameOver("Time's up");
         return;
       }
     }
 
     rafId = requestAnimationFrame(tick);
+  }
+
+  // ----------------------------
+  // 8) Game flow
+  // ----------------------------
+  function loseHeart(){
+    hearts -= 1;
+    hearts = clamp(hearts, 0, 3);
+    renderHearts();
+    if (hearts <= 0) gameOver('Game Over');
+  }
+
+  function gameOver(title){
+    if (done) return;
+    done = true;
+    openOverlay(title);
+  }
+
+  function win(){
+    if (done) return;
+    done = true;
+    openOverlay('BINGO!');
   }
 
   function reset(){
@@ -390,8 +439,7 @@
     // Build fresh board
     let pairs = getPairs(lang);
 
-    // Safety: if vocab failed to load or is too small, inject placeholder pairs
-    // so the UI still renders (and you can spot the console/network issue).
+    // Safety: if vocab didn't load or too small, use placeholders (keeps UI alive)
     const minNeeded = totalTiles + cfg.choices;
     if (!pairs || pairs.length < minNeeded) {
       const base = (pairs || []).slice();
@@ -427,10 +475,11 @@
 
     setTimerCovered(0);
     startTimer();
+    scheduleFit();
   }
 
   // ----------------------------
-  // 7) Input
+  // 9) Input
   // ----------------------------
   function bind(){
     if (pauseBtn) {
@@ -471,7 +520,7 @@
 
       if (!isTarget) {
         btn.disabled = true;
-        btn.classList.add('is-wrong');
+        btn.classList.add('is-wrong'); // polish #2
         loseHeart();
         return;
       }
@@ -487,22 +536,23 @@
       t.solved = true;
       btn.disabled = true;
       btn.classList.add('is-correct');
+      window.setTimeout(() => btn.classList.remove('is-correct'), 220);
+
       setTileSolved(tileIdx);
 
       remainingTargets -= 1;
       if (remainingTargets <= 0) win();
     });
 
+    // prevent accidental zoom on iOS double-tap
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   }
 
   // ----------------------------
-  // 8) Boot
+  // 10) Boot
   // ----------------------------
   function boot(){
-    elExample.style.setProperty('--grid-size', String(gridSize));
-    elBoard.style.setProperty('--grid-size', String(gridSize));
-
+    // Build HP images once
     if ($$('.hp-heart', elHp).length === 0) {
       for (let i = 0; i < 3; i++) {
         const img = document.createElement('img');
@@ -512,6 +562,10 @@
         elHp.appendChild(img);
       }
     }
+
+    // set grid-size var on containers
+    elExample.style.setProperty('--grid-size', String(gridSize));
+    elBoard.style.setProperty('--grid-size', String(gridSize));
 
     renderHearts();
     bind();

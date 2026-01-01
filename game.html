@@ -260,6 +260,19 @@
       --title-gap: clamp(4px, 0.8vh, 8px);
     }
 
+    /* =========================================================
+       9.6) Merge-back mode (difficulty -> language)
+       - Keep language buttons hidden while ghost buttons merge
+       - Title returns to default when .difficulty-mode is removed
+       ========================================================= */
+    body.merging-mode .langs{
+      pointer-events: none;
+    }
+    body.merging-mode .langs .lang-btn{
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
     body.difficulty-mode .langs{
       pointer-events: none;
     }
@@ -634,11 +647,68 @@
       if (!bodyEl.classList.contains('difficulty-mode')) return;
 
       isAnimating = true;
+
+      // Try to run the reverse morph: EASY/NORMAL/HARD -> selected language button
+      const lang = bodyEl.dataset.lang || '';
+      const langBtn = lang ? document.querySelector(`.lang-btn[data-lang="${lang}"]`) : null;
+      const diffBtns = Array.from(diffs.querySelectorAll('.diff-btn'));
+
+      // Fallback (no lang selected / missing nodes)
+      if (!langBtn || diffBtns.length !== 3 || !animLayer) {
+        diffs.classList.remove('is-ready');
+        diffs.setAttribute('aria-hidden', 'true');
+        bodyEl.classList.remove('difficulty-mode');
+        bodyEl.dataset.lang = '';
+        window.setTimeout(() => { isAnimating = false; }, 460);
+        return;
+      }
+
+      // Capture source rects (difficulty buttons) and destination rect (the chosen language button)
+      const srcRects = diffBtns.map(b => b.getBoundingClientRect());
+      const dstRect = langBtn.getBoundingClientRect();
+
+      // Create 3 ghosts at the difficulty button positions
+      const ghosts = [
+        createGhost('assets/EASY.png'),
+        createGhost('assets/NORMAL.png'),
+        createGhost('assets/HARD.png')
+      ].filter(Boolean);
+
+      ghosts.forEach((g, i) => {
+        setGhostRect(g, srcRects[i]);
+        animLayer.appendChild(g);
+      });
+
+      // Hide real difficulty buttons immediately
       diffs.classList.remove('is-ready');
       diffs.setAttribute('aria-hidden', 'true');
+
+      // Keep language buttons hidden while we merge (otherwise they'd pop in behind the ghosts)
+      bodyEl.classList.add('merging-mode');
+
+      // Start title morph back to the Language screen
       bodyEl.classList.remove('difficulty-mode');
-      bodyEl.dataset.lang = '';
-      window.setTimeout(() => { isAnimating = false; }, 460);
+
+      // Kick off the merge animation
+      requestAnimationFrame(() => {
+        ghosts.forEach((g, i) => {
+          const sr = srcRects[i];
+          if (!sr) return;
+          const dx = dstRect.left - sr.left;
+          const dy = dstRect.top - sr.top;
+          const sx = dstRect.width / sr.width;
+          const sy = dstRect.height / sr.height;
+          g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        });
+      });
+
+      // Cleanup
+      window.setTimeout(() => {
+        ghosts.forEach(g => g.remove());
+        bodyEl.classList.remove('merging-mode');
+        bodyEl.dataset.lang = '';
+        isAnimating = false;
+      }, 460);
     }
 
     // Back button: difficulty -> language, language -> index

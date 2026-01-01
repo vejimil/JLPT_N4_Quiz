@@ -786,14 +786,16 @@
       btn.addEventListener('click', () => enterDifficulty(btn));
     });
 
-    // Difficulty button click (placeholder)
+    // Difficulty button click (go to gameplay page)
     document.querySelectorAll('.diff-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const diff = btn.dataset.diff || '';
         const lang = bodyEl.dataset.lang || '';
-        showToast(`Coming soon: ${lang.toUpperCase()} / ${diff.toUpperCase()}`);
+        const next = `./bingo.html?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
+        window.location.href = next;
       });
     });
+
   </script>
 </body>
 </html>

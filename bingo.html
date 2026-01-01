@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>World of Words - Bingo</title>
+
+  <style>
+    :root{
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+
+      --ui-pad-x: clamp(10px, 2vw, 20px);
+      --ui-pad-y: clamp(10px, 2vh, 20px);
+
+      --pause-w: clamp(120px, 18vw, 190px);
+      --pause-h: clamp(40px, 6vw, 62px);
+
+      --title-h: clamp(44px, 6.4vw, 86px);
+      --hp-h: clamp(34px, 5vw, 62px);
+
+      --layout-gap: clamp(14px, 2.6vw, 34px);
+
+      --cell: clamp(60px, 7vw, 98px);
+      --ex-cell: clamp(22px, 3vw, 36px);
+
+      --ans-w: clamp(160px, 22vw, 270px);
+      --ans-h: clamp(56px, 7vw, 86px);
+
+      --timer-w: min(90vw, 980px);
+
+      --tile-text: clamp(10px, 1.2vw, 14px);
+      --tile-text-small: clamp(9px, 1vw, 12px);
+    }
+
+    html, body{
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif;
+    }
+
+    img{
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -ms-interpolation-mode: nearest-neighbor;
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+
+    .stage{
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .bg{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: translateZ(0);
+    }
+
+    .ui{
+      position: absolute;
+      inset: 0;
+      padding:
+        calc(var(--ui-pad-y) + var(--safe-top))
+        calc(var(--ui-pad-x) + var(--safe-right))
+        calc(var(--ui-pad-y) + var(--safe-bottom))
+        calc(var(--ui-pad-x) + var(--safe-left));
+      pointer-events: none;
+    }
+
+    /* clickable areas */
+    .clickable{ pointer-events: auto; }
+
+    /* Shared button base */
+    .ui-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      display: inline-block;
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+      transform: translateZ(0);
+    }
+    .ui-btn:active{ transform: scale(0.98); }
+    @media (hover:hover) and (pointer:fine){
+      .ui-btn:hover{ transform: scale(1.05); }
+    }
+
+    .ui-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+    .ui-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+      height: 48%;
+      max-width: 82%;
+    }
+
+    /* Top bar */
+    .topbar{
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: start;
+      column-gap: var(--layout-gap);
+    }
+
+    .pause-btn{
+      width: var(--pause-w);
+      height: var(--pause-h);
+    }
+
+    .title{
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .title img{
+      height: var(--title-h);
+      width: auto;
+      max-width: 92vw;
+    }
+
+    .hp{
+      display: flex;
+      justify-content: flex-end;
+      gap: clamp(4px, 0.8vw, 10px);
+      padding-top: clamp(2px, 0.3vw, 8px);
+    }
+    .hp img{
+      height: var(--hp-h);
+      width: auto;
+    }
+
+    /* Middle layout */
+    .layout{
+      margin-top: clamp(16px, 3vh, 28px);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--layout-gap);
+    }
+
+    .example-wrap,
+    .board-wrap,
+    .answers-wrap{
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Boards */
+    .board{
+      display: grid;
+      grid-template-columns: repeat(var(--grid-size), var(--cell));
+      grid-auto-rows: var(--cell);
+      gap: clamp(10px, 1.6vw, 18px);
+      align-content: center;
+      justify-content: center;
+    }
+
+    .board.example{
+      grid-template-columns: repeat(var(--grid-size), var(--ex-cell));
+      grid-auto-rows: var(--ex-cell);
+      gap: clamp(6px, 0.9vw, 10px);
+    }
+
+    .tile{
+      width: 100%;
+      height: 100%;
+      position: relative;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+    }
+    .tile:active{ transform: scale(0.98); }
+    @media (hover:hover) and (pointer:fine){
+      .tile:hover{ transform: scale(1.04); }
+    }
+
+    .tile img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .tile .txt{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 88%;
+      text-align: center;
+      font-weight: 800;
+      color: rgba(255,255,255,0.92);
+      text-shadow:
+        0 2px 0 rgba(0,0,0,0.6),
+        0 0 6px rgba(0,0,0,0.35);
+      font-size: var(--tile-text);
+      line-height: 1.15;
+      pointer-events: none;
+      word-break: keep-all;
+    }
+
+    .tile .txt .sub{
+      display: block;
+      margin-top: 2px;
+      font-size: var(--tile-text-small);
+      opacity: 0.95;
+      font-weight: 700;
+    }
+
+    /* Answers */
+    .answers{
+      display: grid;
+      grid-template-columns: repeat(2, var(--ans-w));
+      gap: clamp(10px, 1.6vw, 18px);
+      justify-content: center;
+      align-content: center;
+    }
+
+    .ans-btn{
+      width: var(--ans-w);
+      height: var(--ans-h);
+    }
+    .ans-btn .label{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 88%;
+      text-align: center;
+      font-weight: 900;
+      color: rgba(255,255,255,0.95);
+      text-shadow:
+        0 2px 0 rgba(0,0,0,0.65),
+        0 0 6px rgba(0,0,0,0.35);
+      font-size: clamp(12px, 1.25vw, 16px);
+      line-height: 1.1;
+      pointer-events: none;
+      word-break: keep-all;
+    }
+
+    .ans-btn[disabled]{
+      cursor: default;
+      opacity: 0.55;
+      filter: grayscale(0.35);
+      transform: none !important;
+    }
+
+    /* Timer */
+    .timer-wrap{
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(var(--ui-pad-y) + var(--safe-bottom));
+      width: var(--timer-w);
+      pointer-events: none;
+    }
+
+    .timer{
+      position: relative;
+      width: 100%;
+      height: auto;
+    }
+
+    .timer .base{
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .timer .mask{
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: var(--covered, 0%);
+      overflow: hidden;
+    }
+
+    .timer .mask img{
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Overlay */
+    .overlay{
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 50;
+    }
+
+    .overlay.show{ display: flex; }
+
+    .overlay .card{
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 18px;
+      padding: 18px 16px;
+      width: min(92vw, 420px);
+      text-align: center;
+      color: #fff;
+    }
+
+    .overlay .card h2{
+      margin: 0 0 10px 0;
+      font-size: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .overlay .row{
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .overlay .mini{
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.2);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    /* Mobile: stack vertically */
+    @media (max-width: 860px), (max-aspect-ratio: 4/3){
+      :root{
+        --layout-gap: clamp(10px, 2.4vw, 18px);
+        --cell: clamp(56px, 16vw, 86px);
+        --ans-w: clamp(150px, 42vw, 240px);
+      }
+
+      .layout{
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        justify-items: center;
+      }
+
+      .example-wrap{ order: 1; }
+      .board-wrap{ order: 2; }
+      .answers-wrap{ order: 3; }
+
+      .answers{
+        grid-template-columns: repeat(2, var(--ans-w));
+      }
+
+      .topbar{
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+      }
+
+      .timer-wrap{
+        width: min(94vw, 680px);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="" />
+
+    <div class="ui" aria-label="Bingo gameplay">
+      <!-- Top bar -->
+      <div class="topbar">
+        <button class="ui-btn pause-btn clickable" id="pauseBtn" aria-label="Pause">
+          <img class="bg-img" src="assets/Button_Pause.png" alt="" />
+          <img class="label-img" src="assets/PAUSE.png" alt="PAUSE" />
+        </button>
+
+        <div class="title">
+          <img src="assets/Bingo_Title.png" alt="BINGO" />
+        </div>
+
+        <div class="hp" id="hp" aria-label="HP"></div>
+      </div>
+
+      <!-- Middle -->
+      <div class="layout">
+        <div class="example-wrap">
+          <div class="board example" id="exampleBoard" aria-label="Pattern preview"></div>
+        </div>
+
+        <div class="board-wrap">
+          <div class="board" id="mainBoard" aria-label="Bingo board"></div>
+        </div>
+
+        <div class="answers-wrap">
+          <div class="answers" id="answers" aria-label="Answer choices"></div>
+        </div>
+      </div>
+
+      <!-- Timer bottom -->
+      <div class="timer-wrap">
+        <div class="timer" id="timer">
+          <!-- base (the red one) -->
+          <img class="base" src="assets/TIMEISRUNNINGOUT_White.png" alt="" />
+          <!-- mask that grows from the RIGHT (black cover) -->
+          <div class="mask" id="timerMask">
+            <img src="assets/TIMEISRUNNINGOUT_Black.png" alt="" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Overlays -->
+      <div class="overlay" id="overlay" aria-hidden="true">
+        <div class="card">
+          <h2 id="overlayTitle">Paused</h2>
+          <div class="row">
+            <button class="mini" id="resumeBtn">Resume</button>
+            <button class="mini" id="backBtn">Back</button>
+            <button class="mini" id="retryBtn">Retry</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- vocab sources (JA<->KR, FR/ES<->EN) -->
+  <script src="vocab.js"></script>
+  <script src="vocab-fr.js"></script>
+  <script src="vocab-es.js"></script>
+
+  <!-- gameplay -->
+  <script src="bingo.js"></script>
+</body>
+</html>

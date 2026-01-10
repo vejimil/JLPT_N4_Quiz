@@ -79,12 +79,7 @@
       pointer-events: none;
 
       display: grid;
-      /*
-        Use minmax(0, 1fr) so the middle row can shrink (and, on mobile,
-        become scrollable) instead of overflowing and visually covering the
-        timer row.
-      */
-      grid-template-rows: auto minmax(0, 1fr) auto; /* topbar / main / timer */
+      grid-template-rows: auto 1fr auto; /* topbar / main / timer */
       row-gap: var(--gap);
     }
 
@@ -168,7 +163,6 @@
       justify-items: center;
       column-gap: var(--gap);
       min-height: 0; /* avoid overflow weirdness */
-      overflow: hidden; /* default: never paint over timer */
     }
 
     .panel-example{ justify-self: end; }
@@ -424,35 +418,18 @@
       font-weight: 800;
     }
 
-    /* ===== Responsive: stack vertically =====
-       - Some mobile browsers can report a large CSS width ("desktop site")
-         even in portrait. So we also trigger the mobile layout on
-         (orientation: portrait).
-    */
-    @media (max-width: 900px), (orientation: portrait){
+    /* ===== Responsive: stack vertically ===== */
+    @media (max-width: 900px){
       :root{
-        /*
-          Mobile portrait can be "short" in height once the browser UI is
-          visible. Use vw *and* vh to prevent the middle content from growing
-          too tall and covering the timer.
-        */
-        --tile: clamp(54px, min(16vw, 10vh), 92px);
-        --ex-tile: clamp(18px, min(6.5vw, 4vh), 32px);
-        --grid-gap: clamp(6px, 1.4vw, 12px);
-        --ex-gap: clamp(4px, 1vw, 8px);
-        --ans-w: min(92vw, 360px);
+        --tile: clamp(72px, 18vw, 124px);
+        --ex-tile: clamp(26px, 7.2vw, 44px);
+        --ans-w: 100%;
       }
 
       .play-layout{
         grid-template-columns: 1fr;
         row-gap: var(--gap);
-        /* On mobile, allow vertical scrolling *inside* the middle row
-           (topbar + timer stay fixed in place). */
-        overflow: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
       }
-      .play-layout::-webkit-scrollbar{ width: 0; height: 0; }
 
       .panel-example, .panel-main, .panel-answers{
         justify-self: center;
@@ -462,26 +439,15 @@
       }
 
       #answers.answers-grid{
-        max-width: var(--ans-w);
+        max-width: 560px;
       }
-
-      /* Make answer buttons slightly wider to reduce height */
-      .ans-btn{ aspect-ratio: 2.8 / 1; }
     }
 
-    /* Only switch to 1 column on *very* narrow devices */
-    @media (max-width: 340px){
-      #answers.answers-grid{ grid-template-columns: 1fr; }
-    }
-
-    /* Extra-short screens: shrink a bit more (prevents overlap on small phones) */
-    @media (max-height: 720px) and (max-width: 900px), (max-height: 720px) and (orientation: portrait){
-      :root{
-        --tile: clamp(50px, min(15vw, 9vh), 84px);
-        --ex-tile: clamp(16px, min(6vw, 3.6vh), 28px);
-        --ans-w: min(92vw, 330px);
+    @media (max-width: 520px){
+      #answers.answers-grid{
+        grid-template-columns: 1fr;
+        max-width: 420px;
       }
-      .ans-btn{ aspect-ratio: 3 / 1; }
     }
   </style>
 </head>

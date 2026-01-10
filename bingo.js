@@ -253,7 +253,7 @@
     const size = gridSize;
 
     // Use a slightly bigger aspect ratio to reduce height on mobile
-    const aspect = 2.8;
+    const aspect = 3.2;
 
     // Prefer FEWER columns on mobile (bigger buttons).
     // For 10 choices: default to 3x3 + 1 centered (user preference).
@@ -261,21 +261,23 @@
     let best = null;
 
     const preferredCols = (() => {
-      if (choices === 10) return [3, 4, 5, 2];
-      if (choices === 6)  return [3, 4, 2];
-      return [3, 4, 5, 2];
+      // User preference: on small screens, 10 choices should be 3x3 + 1 (centered).
+      // So we FORCE 3 columns first and only fall back if it truly cannot fit.
+      if (choices === 10) return [3, 4];
+      if (choices === 6)  return [3, 2, 4];
+      return [3, 4, 2, 5];
     })();
 
     for (const cols of preferredCols) {
-      for (let s = 1.00; s >= 0.66; s -= 0.02) {
+      for (let s = 1.00; s >= 0.55; s -= 0.02) {
         const gap = Math.max(10, baseGap * s);
         const gridGap = Math.max(4, baseGridGap * s);
         const exGap = Math.max(3, baseExGap * s);
-        const ansGap = Math.max(12, baseAnsGap * s);
+        const ansGap = Math.max(10, baseAnsGap * s);
 
         // Tile width cap by available width
         const tileMaxW = (availW - (size - 1) * gridGap) / size;
-        const tile = Math.max(42, Math.min(tileMaxW, baseTileFromCSS) * s);
+        const tile = Math.max(36, Math.min(tileMaxW, baseTileFromCSS) * s);
 
         // Example tiles smaller
         const exTile = clamp(tile * 0.36, 12, tile * 0.52);
@@ -308,16 +310,16 @@
 
     // If nothing fits, use max columns + minimum scale
     if (!best) {
-      const cols = maxCols;
+      const cols = (choices === 10) ? 3 : maxCols;
       const s = 0.66;
 
       const gap = Math.max(10, baseGap * s);
       const gridGap = Math.max(4, baseGridGap * s);
       const exGap = Math.max(3, baseExGap * s);
-      const ansGap = Math.max(12, baseAnsGap * s);
+      const ansGap = Math.max(10, baseAnsGap * s);
 
       const tileMaxW = (availW - (size - 1) * gridGap) / size;
-      const tile = Math.max(40, Math.min(tileMaxW, baseTileFromCSS) * s);
+      const tile = Math.max(34, Math.min(tileMaxW, baseTileFromCSS) * s);
       const exTile = clamp(tile * 0.34, 12, tile * 0.5);
       const ansW = clamp(baseAnsW * s, 190, availW * 0.96);
 

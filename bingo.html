@@ -32,9 +32,14 @@
 
       /* Answers */
       --ans-w: clamp(220px, 20vw, 320px);
-      --ans-cols: 2; /* JS may increase (e.g., 3~5) on small screens */
-      --ans-gap: var(--ans-gap);
+      --ans-cols: 2; /* JS may set (e.g., 4~5) on small screens */
+      --ans-gap: clamp(10px, 1.5vw, 16px);
       --ans-aspect: 2.4 / 1;
+
+      /* Timer (keep inside screen by WIDTH) */
+      --timer-w: clamp(260px, 72vw, 720px);
+      --timer-ar-w: 918;  /* TIMEISRUNNINGOUT asset size */
+      --timer-ar-h: 60;
     }
 
     html, body{
@@ -168,7 +173,7 @@
     .play-layout{
       display: grid;
 
-      /* IMPORTANT: minmax(0, 1fr) prevents right-side clipping due to min-content sizing */
+      /* IMPORTANT: minmax(0, 1fr) prevents clipping due to min-content sizing */
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 
       align-items: center;
@@ -176,8 +181,6 @@
       column-gap: var(--gap);
 
       min-height: 0;
-      min-width: 0;
-      box-sizing: border-box;
       min-width: 0;
       overflow: hidden; /* we must fit without scroll */
       box-sizing: border-box;
@@ -200,6 +203,7 @@
       gap: var(--ex-gap);
       justify-content: center;
       align-content: center;
+      max-width: 100%;
     }
 
     .ex-tile{
@@ -215,6 +219,7 @@
       gap: var(--grid-gap);
       justify-content: center;
       align-content: center;
+      max-width: 100%;
     }
 
     .tile{
@@ -328,7 +333,7 @@
       transform: none !important;
     }
 
-    /* ===== Animations (next-step polish) ===== */
+    /* ===== Animations ===== */
     @keyframes tileFlash {
       0%   { filter: brightness(1); }
       50%  { filter: brightness(1.8); }
@@ -370,7 +375,7 @@
       animation: wrongFlash 260ms steps(2, end) 1;
     }
 
-    /* ===== Timer (text becomes black from the RIGHT) ===== */
+    /* ===== Timer (fit by WIDTH) ===== */
     .timer-bar{
       display: grid;
       justify-items: center;
@@ -381,13 +386,15 @@
 
     .timer-wrap{
       position: relative;
-      height: clamp(34px, 6vh, 52px);
+      width: var(--timer-w);
+      aspect-ratio: var(--timer-ar-w) / var(--timer-ar-h);
     }
 
     .timer-img{
+      width: 100%;
       height: 100%;
-      width: auto;
       display: block;
+      object-fit: fill;
     }
 
     .timer-mask{
@@ -451,20 +458,24 @@
       font-weight: 800;
     }
 
-    /* ===== Responsive: stack vertically (NO SCROLL) =====
-       - Some mobile browsers can report a large CSS width ("desktop site")
-         even in portrait. So we also trigger the mobile layout on
-         (orientation: portrait).
-       - The real "fit without scroll" happens in bingo.js (dynamic px vars).
-    */
+    /* ===== Responsive: stack vertically (NO SCROLL) ===== */
     @media (max-width: 900px), (orientation: portrait){
       :root{
-        --tile: clamp(54px, min(16vw, 10vh), 92px);
-        --ex-tile: clamp(18px, min(6.5vw, 4vh), 32px);
-        --grid-gap: clamp(6px, 1.4vw, 12px);
+        /* Safer defaults BEFORE JS runs (prevents "momentary clipping") */
+        --tile: clamp(44px, min(13.8vw, 8.4vh), 72px);
+        --ex-tile: clamp(14px, min(5.6vw, 3.4vh), 26px);
+
+        --grid-gap: clamp(6px, 1.2vw, 10px);
         --ex-gap: clamp(4px, 1vw, 8px);
-        --ans-w: min(92vw, 360px);
-        --ans-aspect: 2.8 / 1;
+
+        /* Answers: smaller buttons + more breathing room */
+        --ans-cols: 4;
+        --ans-w: min(92vw, 380px);
+        --ans-gap: clamp(10px, 2vw, 16px);
+        --ans-aspect: 3.0 / 1;
+
+        /* Timer always inside screen */
+        --timer-w: min(92vw, 560px);
       }
 
       .play-layout{
@@ -519,7 +530,7 @@
         </section>
       </div>
 
-      <!-- Timer bottom (black covers from RIGHT) -->
+      <!-- Timer bottom -->
       <div class="timer-bar">
         <div class="timer-wrap">
           <img class="timer-img" src="assets/TIMEISRUNNINGOUT_Red.png" alt="" onerror="this.onerror=null;this.src='assets/TIMEISRUNNINGOUT_White.png';" />
@@ -543,7 +554,7 @@
     </div>
   </div>
 
-  <!-- vocab sources (JA<->KR, FR/ES<->EN) -->
+  <!-- vocab sources -->
   <script src="vocab.js"></script>
   <script src="vocab-fr.js"></script>
   <script src="vocab-es.js"></script>

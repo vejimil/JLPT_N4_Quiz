@@ -3,19 +3,18 @@
   - Desktop: example (left) / main board (center) / answers (right)
   - Mobile: stacked (example -> main -> answers -> timer)
 
-  Next-step polish included:
+  MOBILE GOAL:
+  - NO SCROLL.
+  - Keep layout centered.
+  - Auto-shrink tile/gaps/answers so everything fits inside the viewport.
+
+  Polish included:
   1) Correct pick: tile flashes (pixel-like)
   2) Wrong pick: answer shakes + flashes
   3) Text auto-fit: shrink font until it fits the box
-
-  Query params:
-    bingo.html?lang=ja|fr|es&diff=easy|normal|hard
 */
 
 (() => {
-  // ----------------------------
-  // 0) Helpers
-  // ----------------------------
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -55,16 +54,12 @@
     return 'normal';
   }
 
-  // ----------------------------
-  // 1) Config
-  // ----------------------------
   const DIFF = {
     easy:   { size: 3, target: 4, choices: 6,  timeSec: 28 },
     normal: { size: 4, target: 5, choices: 10, timeSec: 28 },
     hard:   { size: 4, target: 6, choices: 10, timeSec: 22 },
   };
 
-  // Pattern templates (indices in row-major)
   const PATTERNS_3 = [
     [0, 1, 3, 4],
     [1, 2, 4, 5],
@@ -93,15 +88,9 @@
   ];
 
   function pickPattern(size, target){
-    if (size === 3) {
-      return PATTERNS_3[Math.floor(Math.random() * PATTERNS_3.length)].slice(0, target);
-    }
-    if (size === 4 && target === 5) {
-      return PATTERNS_4_5[Math.floor(Math.random() * PATTERNS_4_5.length)].slice();
-    }
-    if (size === 4 && target === 6) {
-      return PATTERNS_4_6[Math.floor(Math.random() * PATTERNS_4_6.length)].slice();
-    }
+    if (size === 3) return PATTERNS_3[Math.floor(Math.random() * PATTERNS_3.length)].slice(0, target);
+    if (size === 4 && target === 5) return PATTERNS_4_5[Math.floor(Math.random() * PATTERNS_4_5.length)].slice();
+    if (size === 4 && target === 6) return PATTERNS_4_6[Math.floor(Math.random() * PATTERNS_4_6.length)].slice();
 
     const total = size * size;
     const idxs = Array.from({length: total}, (_, i) => i);
@@ -109,53 +98,37 @@
     return idxs.slice(0, target);
   }
 
-  // ----------------------------
-  // 2) Vocab adapters
-  // ----------------------------
-  // NOTE: vocab-*.js define globals using `const VOCAB...`.
-  // These are NOT properties on window, so access via `typeof VOCAB !== 'undefined'`.
   function getPairs(lang){
     if (lang === 'fr') {
       const SRC = (typeof VOCAB_FR !== 'undefined') ? VOCAB_FR : (globalThis.VOCAB_FR || []);
       const pool = (SRC || []).filter(v => v && v.fr && v.en);
       return pool.map(v => ({ id: v.id, q1: String(v.fr), q2: '', a: String(v.en) }));
     }
-
     if (lang === 'es') {
       const SRC = (typeof VOCAB_ES !== 'undefined') ? VOCAB_ES : (globalThis.VOCAB_ES || []);
       const pool = (SRC || []).filter(v => v && v.es && v.en);
       return pool.map(v => ({ id: v.id, q1: String(v.es), q2: '', a: String(v.en) }));
     }
-
-    // ja
     const SRC = (typeof VOCAB !== 'undefined') ? VOCAB : (globalThis.VOCAB || []);
     const pool = (SRC || []).filter(v => v && v.jpKana && v.krMeaning);
     return pool.map(v => {
       const kanji = (v.jpKanji || '').trim();
       const kana = (v.jpKana || '').trim();
       const useKanji = kanji && kanji !== '-' && kanji !== '—' && kanji !== '(한자 없음)';
-      return {
-        id: v.id,
-        q1: useKanji ? kanji : kana,
-        q2: useKanji ? kana : '',
-        a: String(v.krMeaning),
-      };
+      return { id: v.id, q1: useKanji ? kanji : kana, q2: useKanji ? kana : '', a: String(v.krMeaning) };
     });
   }
 
-  // ----------------------------
-  // 3) DOM refs
-  // ----------------------------
-  const elExample = $("#exampleBoard");
-  const elBoard = $("#mainBoard");
-  const elAnswers = $("#answers");
-  const elTimerMask = $("#timerMask");
-  const elHp = $("#hp");
+  const elExample = $('#exampleBoard');
+  const elBoard = $('#mainBoard');
+  const elAnswers = $('#answers');
+  const elTimerMask = $('#timerMask');
+  const elHp = $('#hp');
 
-  const elUI = $(".ui");
-  const elTopbar = $(".topbar");
-  const elTimerBar = $(".timer-bar");
-  const elPlayLayout = $(".play-layout");
+  const elUI = $('.ui');
+  const elTopbar = $('.topbar');
+  const elTimerBar = $('.timer-bar');
+  const elPlayLayout = $('.play-layout');
   const root = document.documentElement;
 
   const pauseBtn = $('#pauseBtn');
@@ -167,9 +140,6 @@
 
   if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp || !elUI || !elTopbar || !elTimerBar || !elPlayLayout) return;
 
-  // ----------------------------
-  // 4) State
-  // ----------------------------
   const lang = normalizeLang(qsParam('lang', 'ja'));
   const diff = normalizeDiff(qsParam('diff', 'normal'));
   const cfg = DIFF[diff] || DIFF.normal;
@@ -189,150 +159,17 @@
   let targetIdxs = [];
   let remainingTargets = 0;
 
-
   // ----------------------------
-  // 4.5) Responsive fit (NO SCROLL on small screens)
+  // Text auto-fit
   // ----------------------------
-  let layoutTimer = 0;
-
-  function pxVar(name, fallback){
-    const v = parseFloat(getComputedStyle(root).getPropertyValue(name));
-    return Number.isFinite(v) ? v : fallback;
-  }
-
-  function applyResponsiveSizing(){
-    // Keep in sync with bingo.html media query
-    const isStacked = window.matchMedia('(orientation: portrait)').matches || window.innerWidth <= 900;
-
-    if (!isStacked) {
-      root.style.setProperty('--ans-cols', '2');
-      [
-        '--tile','--ex-tile','--gap','--grid-gap','--ex-gap','--ans-w','--ans-gap',
-        '--title-h','--pause-w','--pause-h','--hp-h'
-      ].forEach(k => root.style.removeProperty(k));
-      return;
-    }
-
-    // Middle-row available size (topbar + timer are fixed rows)
-    const uiStyles = getComputedStyle(elUI);
-    const rowGap = parseFloat(uiStyles.rowGap) || 0;
-    const availH = elUI.clientHeight - elTopbar.offsetHeight - elTimerBar.offsetHeight - rowGap * 2;
-    const availW = elPlayLayout.clientWidth;
-    if (!(availH > 0) || !(availW > 0)) return;
-
-    // Save a bit of height on very short screens (mobile browser chrome, etc.)
-    if (window.innerHeight < 740) {
-      const sTop = clamp(window.innerHeight / 740, 0.86, 1);
-      root.style.setProperty('--title-h', clamp(pxVar('--title-h', 62) * sTop, 34, 62) + 'px');
-      root.style.setProperty('--pause-h', clamp(pxVar('--pause-h', 50) * sTop, 34, 50) + 'px');
-      root.style.setProperty('--pause-w', clamp(pxVar('--pause-w', 160) * sTop, 120, 160) + 'px');
-      root.style.setProperty('--hp-h', clamp(pxVar('--hp-h', 46) * sTop, 28, 46) + 'px');
-    }
-
-    // Base values from computed CSS (already clamped by media query)
-    const baseGap = pxVar('--gap', 12);
-    const baseGridGap = pxVar('--grid-gap', 8);
-    const baseExGap = pxVar('--ex-gap', 6);
-    const baseAnsGap = pxVar('--ans-gap', 10);
-    const baseAnsW = Math.min(availW, pxVar('--ans-w', Math.min(availW, 360)));
-    const baseTile = pxVar('--tile', Math.min(availW / gridSize, 86));
-
-    const choices = cfg.choices;
-    const size = gridSize;
-    const aspect = 2.8;
-
-    let best = null;
-    const maxCols = Math.min(5, choices);
-
-    for (let cols = 2; cols <= maxCols; cols++) {
-      for (let s = 1.00; s >= 0.70; s -= 0.02) {
-        const gap = Math.max(6, baseGap * s);
-        const gridGap = Math.max(4, baseGridGap * s);
-        const exGap = Math.max(3, baseExGap * s);
-        const ansGap = Math.max(6, baseAnsGap * s);
-
-        const tileMaxW = (availW - (size - 1) * gridGap) / size;
-        const tile = Math.max(44, Math.min(tileMaxW, baseTile) * s);
-        const exTile = clamp(tile * 0.38, 14, tile * 0.55);
-        const ansW = clamp(baseAnsW * s, 220, availW);
-
-        const mainH = size * tile + (size - 1) * gridGap;
-        const exH = size * exTile + (size - 1) * exGap;
-
-        const rows = Math.ceil(choices / cols);
-        const btnW = (ansW - (cols - 1) * ansGap) / cols;
-        if (!(btnW > 0)) continue;
-        const btnH = btnW / aspect;
-        const answersH = rows * btnH + (rows - 1) * ansGap;
-
-        const totalH = exH + gap + mainH + gap + answersH;
-        if (totalH <= (availH - 6)) {
-          if (!best || tile > best.tile) best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
-          break;
-        }
-      }
-      // readability first: accept the first fitting cols
-      if (best && best.cols === cols) break;
-    }
-
-    // hard fallback
-    if (!best) {
-      const cols = maxCols;
-      const s = 0.70;
-      const gap = Math.max(6, baseGap * s);
-      const gridGap = Math.max(4, baseGridGap * s);
-      const exGap = Math.max(3, baseExGap * s);
-      const ansGap = Math.max(6, baseAnsGap * s);
-
-      const tileMaxW = (availW - (size - 1) * gridGap) / size;
-      const tile = Math.max(40, Math.min(tileMaxW, baseTile) * s);
-      const exTile = clamp(tile * 0.36, 12, tile * 0.50);
-      const ansW = clamp(baseAnsW * s, 210, availW);
-
-      best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
-    }
-
-    // Apply px vars → guaranteed fit without scroll
-    root.style.setProperty('--ans-cols', String(best.cols));
-    root.style.setProperty('--tile', best.tile.toFixed(2) + 'px');
-    root.style.setProperty('--grid-gap', best.gridGap.toFixed(2) + 'px');
-    root.style.setProperty('--ex-tile', best.exTile.toFixed(2) + 'px');
-    root.style.setProperty('--ex-gap', best.exGap.toFixed(2) + 'px');
-    root.style.setProperty('--ans-w', best.ansW.toFixed(2) + 'px');
-    root.style.setProperty('--ans-gap', best.ansGap.toFixed(2) + 'px');
-    root.style.setProperty('--gap', best.gap.toFixed(2) + 'px');
-  }
-
-  function scheduleLayoutFit(){
-    window.clearTimeout(layoutTimer);
-    layoutTimer = window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        applyResponsiveSizing();
-        requestAnimationFrame(() => {
-          fitAllText();
-        });
-      });
-    }, 60);
-  }
-
-  // ----------------------------
-  // 5) Text auto-fit (polish #3)
-  // ----------------------------
-  let fitTimer = 0;
-
   function fitText(el, minPx){
     if (!el) return;
-    const cs = window.getComputedStyle(el);
-    let fs = parseFloat(cs.fontSize);
+    el.style.fontSize = '';
+    let fs = parseFloat(getComputedStyle(el).fontSize);
     if (!fs || Number.isNaN(fs)) return;
 
-    // Reset any previous inline size so we start from CSS clamp
-    el.style.fontSize = '';
-    fs = parseFloat(window.getComputedStyle(el).fontSize);
-
     let guard = 0;
-    while (guard < 24 && fs > minPx) {
-      // small tolerance (text-shadow etc.)
+    while (guard < 28 && fs > minPx) {
       const tooTall = el.scrollHeight > el.clientHeight + 2;
       const tooWide = el.scrollWidth > el.clientWidth + 2;
       if (!tooTall && !tooWide) break;
@@ -343,35 +180,177 @@
   }
 
   function fitAllText(){
-    // Tiles
-    $$('#mainBoard .txt').forEach(el => fitText(el, 11));
-    // Answers
-    $$('#answers .label').forEach(el => fitText(el, 12));
+    $$('#mainBoard .txt').forEach(el => fitText(el, 10));
+    $$('#answers .label').forEach(el => fitText(el, 11));
   }
-
-  function scheduleFit(){
-    window.clearTimeout(fitTimer);
-    // Wait a moment so layout settles (images / grid)
-    fitTimer = window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        fitAllText();
-      });
-    }, 50);
-  }
-
-  window.addEventListener('resize', () => { scheduleLayoutFit(); scheduleFit(); });
-
-  window.addEventListener('orientationchange', scheduleLayoutFit);
 
   // ----------------------------
-  // 6) Rendering
+  // Mobile "fit without scroll"
+  // ----------------------------
+  function pxVar(name, fallback){
+    const v = parseFloat(getComputedStyle(root).getPropertyValue(name));
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  function applyResponsiveSizing(){
+    const isStacked = window.matchMedia('(orientation: portrait)').matches || window.innerWidth <= 900;
+
+    if (!isStacked) {
+      // Desktop: remove JS overrides
+      root.style.removeProperty('--tile');
+      root.style.removeProperty('--ex-tile');
+      root.style.removeProperty('--gap');
+      root.style.removeProperty('--grid-gap');
+      root.style.removeProperty('--ex-gap');
+      root.style.removeProperty('--ans-w');
+      root.style.removeProperty('--ans-gap');
+      root.style.setProperty('--ans-cols', '2');
+      root.style.removeProperty('--title-h');
+      root.style.removeProperty('--pause-w');
+      root.style.removeProperty('--pause-h');
+      root.style.removeProperty('--hp-h');
+      return;
+    }
+
+    const uiStyles = getComputedStyle(elUI);
+    const rowGap = parseFloat(uiStyles.rowGap) || 0;
+
+    // Available height for the middle row
+    const availH = elUI.clientHeight - elTopbar.offsetHeight - elTimerBar.offsetHeight - rowGap * 2;
+
+    // Width available for middle content
+    const availW = elPlayLayout.clientWidth;
+
+    if (!(availH > 0) || !(availW > 0)) return;
+
+    const baseGap = pxVar('--gap', 12);
+    const baseGridGap = pxVar('--grid-gap', 8);
+    const baseExGap = pxVar('--ex-gap', 6);
+    const baseAnsGap = pxVar('--ans-gap', 12);
+
+    // Keep answer container inside screen (a bit smaller than layout width)
+    const baseAnsW = Math.min(availW * 0.92, pxVar('--ans-w', Math.min(availW * 0.92, 380)));
+    const baseTileFromCSS = pxVar('--tile', Math.min(availW / gridSize, 72));
+
+    // Slightly shrink topbar on very short screens
+    if (window.innerHeight < 740) {
+      const scaleTop = clamp(window.innerHeight / 740, 0.84, 1);
+      const curTitle = pxVar('--title-h', 62);
+      const curPauseH = pxVar('--pause-h', 50);
+      const curPauseW = pxVar('--pause-w', 160);
+      const curHp = pxVar('--hp-h', 46);
+
+      root.style.setProperty('--title-h', clamp(curTitle * scaleTop, 32, curTitle) + 'px');
+      root.style.setProperty('--pause-h', clamp(curPauseH * scaleTop, 32, curPauseH) + 'px');
+      root.style.setProperty('--pause-w', clamp(curPauseW * scaleTop, 110, curPauseW) + 'px');
+      root.style.setProperty('--hp-h', clamp(curHp * scaleTop, 26, curHp) + 'px');
+    }
+
+    const choices = cfg.choices;
+    const size = gridSize;
+
+    // Use a slightly bigger aspect ratio to reduce height on mobile
+    const aspect = 3.0;
+
+    // Prefer MORE columns on mobile so buttons are not huge and not stuck together.
+    const maxCols = Math.min(5, choices);
+    let best = null;
+
+    for (let cols = maxCols; cols >= 2; cols--) {
+      for (let s = 1.00; s >= 0.66; s -= 0.02) {
+        const gap = Math.max(8, baseGap * s);
+        const gridGap = Math.max(4, baseGridGap * s);
+        const exGap = Math.max(3, baseExGap * s);
+        const ansGap = Math.max(8, baseAnsGap * s);
+
+        // Tile width cap by available width
+        const tileMaxW = (availW - (size - 1) * gridGap) / size;
+        const tile = Math.max(42, Math.min(tileMaxW, baseTileFromCSS) * s);
+
+        // Example tiles smaller
+        const exTile = clamp(tile * 0.36, 12, tile * 0.52);
+
+        const ansW = clamp(baseAnsW * s, 200, availW * 0.96);
+
+        const mainH = size * tile + (size - 1) * gridGap;
+        const exH = size * exTile + (size - 1) * exGap;
+
+        const rows = Math.ceil(choices / cols);
+        const btnW = (ansW - (cols - 1) * ansGap) / cols;
+        if (!(btnW > 0)) continue;
+
+        const btnH = btnW / aspect;
+        const answersH = rows * btnH + (rows - 1) * ansGap;
+
+        const total = exH + gap + mainH + gap + answersH;
+
+        if (total <= (availH - 6)) {
+          // Objective: maximize tile first, then maximize gap (less crowded)
+          if (!best || tile > best.tile || (Math.abs(tile - best.tile) < 0.2 && ansGap > best.ansGap)) {
+            best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+          } else if (!best) {
+            best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+          }
+          break;
+        }
+      }
+      if (best) break;
+    }
+
+    // If nothing fits, use max columns + minimum scale
+    if (!best) {
+      const cols = maxCols;
+      const s = 0.66;
+
+      const gap = Math.max(8, baseGap * s);
+      const gridGap = Math.max(4, baseGridGap * s);
+      const exGap = Math.max(3, baseExGap * s);
+      const ansGap = Math.max(8, baseAnsGap * s);
+
+      const tileMaxW = (availW - (size - 1) * gridGap) / size;
+      const tile = Math.max(40, Math.min(tileMaxW, baseTileFromCSS) * s);
+      const exTile = clamp(tile * 0.34, 12, tile * 0.5);
+      const ansW = clamp(baseAnsW * s, 190, availW * 0.96);
+
+      best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+    }
+
+    root.style.setProperty('--ans-cols', String(best.cols));
+    root.style.setProperty('--tile', best.tile.toFixed(2) + 'px');
+    root.style.setProperty('--grid-gap', best.gridGap.toFixed(2) + 'px');
+    root.style.setProperty('--ex-tile', best.exTile.toFixed(2) + 'px');
+    root.style.setProperty('--ex-gap', best.exGap.toFixed(2) + 'px');
+    root.style.setProperty('--ans-w', best.ansW.toFixed(2) + 'px');
+    root.style.setProperty('--ans-gap', best.ansGap.toFixed(2) + 'px');
+    root.style.setProperty('--gap', best.gap.toFixed(2) + 'px');
+  }
+
+  function scheduleFitNow(){
+    requestAnimationFrame(() => {
+      applyResponsiveSizing();
+      requestAnimationFrame(() => fitAllText());
+    });
+  }
+
+  // Run quickly at breakpoint changes (prevents "momentary clipping")
+  window.addEventListener('resize', scheduleFitNow, { passive: true });
+  window.addEventListener('orientationchange', scheduleFitNow);
+
+  // Also observe layout size changes (mobile browser UI showing/hiding)
+  try {
+    const ro = new ResizeObserver(() => scheduleFitNow());
+    ro.observe(elUI);
+    ro.observe(elPlayLayout);
+  } catch(e) {}
+
+  // ----------------------------
+  // Rendering
   // ----------------------------
   function renderHearts(){
     const imgs = $$('.hp-heart', elHp);
     imgs.forEach((img, i) => {
       const alive = i < hearts;
       img.src = alive ? 'assets/HP_Red.png' : 'assets/HP_Black.png';
-      img.alt = alive ? 'HP' : 'Lost HP';
     });
   }
 
@@ -400,14 +379,12 @@
 
     btn.appendChild(img);
     btn.appendChild(label);
-
     return btn;
   }
 
   function flashTile(btn){
     if (!btn) return;
     btn.classList.remove('flash');
-    // reflow to retrigger
     void btn.offsetWidth;
     btn.classList.add('flash');
     window.setTimeout(() => btn.classList.remove('flash'), 260);
@@ -418,23 +395,20 @@
     if (!btn) return;
     const img = $('img', btn);
     if (img) img.src = 'assets/Bingo_Panel_Red.png';
-    btn.classList.add('is-solved');
-    flashTile(btn); // polish #1
+    flashTile(btn);
   }
 
   function renderBoard(){
     elBoard.style.setProperty('--grid-size', String(gridSize));
     elBoard.innerHTML = '';
     for (let i = 0; i < totalTiles; i++) {
-      const t = tiles[i];
-      elBoard.appendChild(makeTileButton(i, t.pair));
+      elBoard.appendChild(makeTileButton(i, tiles[i].pair));
     }
   }
 
   function renderExample(){
     elExample.style.setProperty('--grid-size', String(gridSize));
     elExample.innerHTML = '';
-
     for (let i = 0; i < totalTiles; i++) {
       const isTarget = targetIdxs.includes(i);
       const img = document.createElement('img');
@@ -450,12 +424,12 @@
 
     const correct = targetIdxs.map(idx => ({
       tileIdx: idx,
-      text: (tiles[idx] && tiles[idx].pair) ? tiles[idx].pair.a : '',
+      text: tiles[idx]?.pair?.a || '',
       isTarget: true,
     }));
 
     const decoyPool = tiles
-      .map((t, idx) => ({ tileIdx: idx, text: (t && t.pair) ? t.pair.a : '', isTarget: false }))
+      .map((t, idx) => ({ tileIdx: idx, text: t?.pair?.a || '', isTarget: false }))
       .filter(x => !targetIdxs.includes(x.tileIdx));
 
     const usedText = new Set(correct.map(c => c.text));
@@ -493,17 +467,15 @@
   }
 
   // ----------------------------
-  // 7) Overlay / timer
+  // Overlay / timer
   // ----------------------------
   function openOverlay(title){
-    if (!overlay) return;
     overlayTitle.textContent = title;
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
   }
 
   function closeOverlay(){
-    if (!overlay) return;
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
   }
@@ -526,27 +498,23 @@
     if (!paused) {
       const dt = now - startTs;
       startTs = now;
-      remainingMs -= dt;
-      remainingMs = Math.max(0, remainingMs);
+      remainingMs = Math.max(0, remainingMs - dt);
 
-      const covered = 1 - (remainingMs / (cfg.timeSec * 1000));
-      setTimerCovered(covered);
+      setTimerCovered(1 - (remainingMs / (cfg.timeSec * 1000)));
 
       if (remainingMs <= 0) {
         gameOver("Time's up");
         return;
       }
     }
-
     rafId = requestAnimationFrame(tick);
   }
 
   // ----------------------------
-  // 8) Game flow
+  // Game flow
   // ----------------------------
   function loseHeart(){
-    hearts -= 1;
-    hearts = clamp(hearts, 0, 3);
+    hearts = clamp(hearts - 1, 0, 3);
     renderHearts();
     if (hearts <= 0) gameOver('Game Over');
   }
@@ -570,21 +538,14 @@
     renderHearts();
     closeOverlay();
 
-    // Build fresh board
     let pairs = getPairs(lang);
 
-    // Safety: if vocab didn't load or too small, use placeholders (keeps UI alive)
     const minNeeded = totalTiles + cfg.choices;
     if (!pairs || pairs.length < minNeeded) {
       const base = (pairs || []).slice();
       const need = Math.max(0, minNeeded - base.length);
       for (let i = 0; i < need; i++) {
-        base.push({
-          id: `dummy-${Date.now()}-${i}`,
-          q1: `WORD ${i + 1}`,
-          q2: '',
-          a: `MEANING ${i + 1}`,
-        });
+        base.push({ id: `dummy-${Date.now()}-${i}`, q1: `WORD ${i + 1}`, q2: '', a: `MEANING ${i + 1}` });
       }
       pairs = base;
     }
@@ -596,11 +557,7 @@
 
     tiles.length = 0;
     for (let i = 0; i < totalTiles; i++) {
-      tiles.push({
-        pair: chosen[i],
-        isTarget: targetIdxs.includes(i),
-        solved: false,
-      });
+      tiles.push({ pair: chosen[i], isTarget: targetIdxs.includes(i), solved: false });
     }
 
     renderExample();
@@ -608,33 +565,33 @@
     renderAnswers();
 
     setTimerCovered(0);
+
+    // Fit immediately (no momentary clipping)
+    scheduleFitNow();
+
     startTimer();
-    scheduleLayoutFit();
-    scheduleFit();
   }
 
   // ----------------------------
-  // 9) Input
+  // Input
   // ----------------------------
   function bind(){
-    if (pauseBtn) {
-      pauseBtn.addEventListener('click', () => {
-        if (done) return;
-        paused = !paused;
-        if (paused) openOverlay('Paused');
-        else closeOverlay();
-      });
-    }
+    pauseBtn.addEventListener('click', () => {
+      if (done) return;
+      paused = !paused;
+      if (paused) openOverlay('Paused');
+      else closeOverlay();
+    });
 
-    if (resumeBtn) resumeBtn.addEventListener('click', () => {
+    resumeBtn.addEventListener('click', () => {
       if (done && overlayTitle.textContent !== 'Paused') return;
       paused = false;
       closeOverlay();
     });
 
-    if (retryBtn) retryBtn.addEventListener('click', () => reset());
+    retryBtn.addEventListener('click', () => reset());
 
-    if (backBtn) backBtn.addEventListener('click', () => {
+    backBtn.addEventListener('click', () => {
       const url = new URL(window.location.href);
       url.pathname = url.pathname.replace(/bingo\.html$/i, 'game.html');
       url.searchParams.delete('diff');
@@ -645,17 +602,15 @@
     elAnswers.addEventListener('click', (e) => {
       const btn = e.target && e.target.closest ? e.target.closest('.ans-btn') : null;
       if (!btn) return;
-      if (paused || done) return;
-      if (btn.disabled) return;
+      if (paused || done || btn.disabled) return;
 
       const tileIdx = Number(btn.dataset.tileIdx);
       const isTarget = btn.dataset.isTarget === '1';
-
-      if (Number.isNaN(tileIdx) || tileIdx < 0 || tileIdx >= totalTiles) return;
+      if (!Number.isFinite(tileIdx) || tileIdx < 0 || tileIdx >= totalTiles) return;
 
       if (!isTarget) {
         btn.disabled = true;
-        btn.classList.add('is-wrong'); // polish #2
+        btn.classList.add('is-wrong');
         loseHeart();
         return;
       }
@@ -671,7 +626,7 @@
       t.solved = true;
       btn.disabled = true;
       btn.classList.add('is-correct');
-      window.setTimeout(() => btn.classList.remove('is-correct'), 220);
+      setTimeout(() => btn.classList.remove('is-correct'), 220);
 
       setTileSolved(tileIdx);
 
@@ -679,15 +634,10 @@
       if (remainingTargets <= 0) win();
     });
 
-    // prevent accidental zoom on iOS double-tap
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   }
 
-  // ----------------------------
-  // 10) Boot
-  // ----------------------------
   function boot(){
-    // Build HP images once
     if ($$('.hp-heart', elHp).length === 0) {
       for (let i = 0; i < 3; i++) {
         const img = document.createElement('img');
@@ -698,13 +648,14 @@
       }
     }
 
-    // set grid-size var on containers
     elExample.style.setProperty('--grid-size', String(gridSize));
     elBoard.style.setProperty('--grid-size', String(gridSize));
 
-    renderHearts();
     bind();
     reset();
+
+    // One extra fit after mobile browser UI settles
+    setTimeout(() => scheduleFitNow(), 150);
   }
 
   window.addEventListener('load', boot);

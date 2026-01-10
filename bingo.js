@@ -146,11 +146,17 @@
   // ----------------------------
   // 3) DOM refs
   // ----------------------------
-  const elExample = $('#exampleBoard');
-  const elBoard = $('#mainBoard');
-  const elAnswers = $('#answers');
-  const elTimerMask = $('#timerMask');
-  const elHp = $('#hp');
+  const elExample = $("#exampleBoard");
+  const elBoard = $("#mainBoard");
+  const elAnswers = $("#answers");
+  const elTimerMask = $("#timerMask");
+  const elHp = $("#hp");
+
+  const elUI = $(".ui");
+  const elTopbar = $(".topbar");
+  const elTimerBar = $(".timer-bar");
+  const elPlayLayout = $(".play-layout");
+  const root = document.documentElement;
 
   const pauseBtn = $('#pauseBtn');
   const overlay = $('#overlay');
@@ -159,7 +165,7 @@
   const backBtn = $('#backBtn');
   const retryBtn = $('#retryBtn');
 
-  if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp) return;
+  if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp || !elUI || !elTopbar || !elTimerBar || !elPlayLayout) return;
 
   // ----------------------------
   // 4) State
@@ -182,6 +188,132 @@
   const tiles = [];
   let targetIdxs = [];
   let remainingTargets = 0;
+
+
+  // ----------------------------
+  // 4.5) Responsive fit (NO SCROLL on small screens)
+  // ----------------------------
+  let layoutTimer = 0;
+
+  function pxVar(name, fallback){
+    const v = parseFloat(getComputedStyle(root).getPropertyValue(name));
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  function applyResponsiveSizing(){
+    // Keep in sync with bingo.html media query
+    const isStacked = window.matchMedia('(orientation: portrait)').matches || window.innerWidth <= 900;
+
+    if (!isStacked) {
+      root.style.setProperty('--ans-cols', '2');
+      [
+        '--tile','--ex-tile','--gap','--grid-gap','--ex-gap','--ans-w','--ans-gap',
+        '--title-h','--pause-w','--pause-h','--hp-h'
+      ].forEach(k => root.style.removeProperty(k));
+      return;
+    }
+
+    // Middle-row available size (topbar + timer are fixed rows)
+    const uiStyles = getComputedStyle(elUI);
+    const rowGap = parseFloat(uiStyles.rowGap) || 0;
+    const availH = elUI.clientHeight - elTopbar.offsetHeight - elTimerBar.offsetHeight - rowGap * 2;
+    const availW = elPlayLayout.clientWidth;
+    if (!(availH > 0) || !(availW > 0)) return;
+
+    // Save a bit of height on very short screens (mobile browser chrome, etc.)
+    if (window.innerHeight < 740) {
+      const sTop = clamp(window.innerHeight / 740, 0.86, 1);
+      root.style.setProperty('--title-h', clamp(pxVar('--title-h', 62) * sTop, 34, 62) + 'px');
+      root.style.setProperty('--pause-h', clamp(pxVar('--pause-h', 50) * sTop, 34, 50) + 'px');
+      root.style.setProperty('--pause-w', clamp(pxVar('--pause-w', 160) * sTop, 120, 160) + 'px');
+      root.style.setProperty('--hp-h', clamp(pxVar('--hp-h', 46) * sTop, 28, 46) + 'px');
+    }
+
+    // Base values from computed CSS (already clamped by media query)
+    const baseGap = pxVar('--gap', 12);
+    const baseGridGap = pxVar('--grid-gap', 8);
+    const baseExGap = pxVar('--ex-gap', 6);
+    const baseAnsGap = pxVar('--ans-gap', 10);
+    const baseAnsW = Math.min(availW, pxVar('--ans-w', Math.min(availW, 360)));
+    const baseTile = pxVar('--tile', Math.min(availW / gridSize, 86));
+
+    const choices = cfg.choices;
+    const size = gridSize;
+    const aspect = 2.8;
+
+    let best = null;
+    const maxCols = Math.min(5, choices);
+
+    for (let cols = 2; cols <= maxCols; cols++) {
+      for (let s = 1.00; s >= 0.70; s -= 0.02) {
+        const gap = Math.max(6, baseGap * s);
+        const gridGap = Math.max(4, baseGridGap * s);
+        const exGap = Math.max(3, baseExGap * s);
+        const ansGap = Math.max(6, baseAnsGap * s);
+
+        const tileMaxW = (availW - (size - 1) * gridGap) / size;
+        const tile = Math.max(44, Math.min(tileMaxW, baseTile) * s);
+        const exTile = clamp(tile * 0.38, 14, tile * 0.55);
+        const ansW = clamp(baseAnsW * s, 220, availW);
+
+        const mainH = size * tile + (size - 1) * gridGap;
+        const exH = size * exTile + (size - 1) * exGap;
+
+        const rows = Math.ceil(choices / cols);
+        const btnW = (ansW - (cols - 1) * ansGap) / cols;
+        if (!(btnW > 0)) continue;
+        const btnH = btnW / aspect;
+        const answersH = rows * btnH + (rows - 1) * ansGap;
+
+        const totalH = exH + gap + mainH + gap + answersH;
+        if (totalH <= (availH - 6)) {
+          if (!best || tile > best.tile) best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+          break;
+        }
+      }
+      // readability first: accept the first fitting cols
+      if (best && best.cols === cols) break;
+    }
+
+    // hard fallback
+    if (!best) {
+      const cols = maxCols;
+      const s = 0.70;
+      const gap = Math.max(6, baseGap * s);
+      const gridGap = Math.max(4, baseGridGap * s);
+      const exGap = Math.max(3, baseExGap * s);
+      const ansGap = Math.max(6, baseAnsGap * s);
+
+      const tileMaxW = (availW - (size - 1) * gridGap) / size;
+      const tile = Math.max(40, Math.min(tileMaxW, baseTile) * s);
+      const exTile = clamp(tile * 0.36, 12, tile * 0.50);
+      const ansW = clamp(baseAnsW * s, 210, availW);
+
+      best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+    }
+
+    // Apply px vars → guaranteed fit without scroll
+    root.style.setProperty('--ans-cols', String(best.cols));
+    root.style.setProperty('--tile', best.tile.toFixed(2) + 'px');
+    root.style.setProperty('--grid-gap', best.gridGap.toFixed(2) + 'px');
+    root.style.setProperty('--ex-tile', best.exTile.toFixed(2) + 'px');
+    root.style.setProperty('--ex-gap', best.exGap.toFixed(2) + 'px');
+    root.style.setProperty('--ans-w', best.ansW.toFixed(2) + 'px');
+    root.style.setProperty('--ans-gap', best.ansGap.toFixed(2) + 'px');
+    root.style.setProperty('--gap', best.gap.toFixed(2) + 'px');
+  }
+
+  function scheduleLayoutFit(){
+    window.clearTimeout(layoutTimer);
+    layoutTimer = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        applyResponsiveSizing();
+        requestAnimationFrame(() => {
+          fitAllText();
+        });
+      });
+    }, 60);
+  }
 
   // ----------------------------
   // 5) Text auto-fit (polish #3)
@@ -227,7 +359,9 @@
     }, 50);
   }
 
-  window.addEventListener('resize', scheduleFit);
+  window.addEventListener('resize', () => { scheduleLayoutFit(); scheduleFit(); });
+
+  window.addEventListener('orientationchange', scheduleLayoutFit);
 
   // ----------------------------
   // 6) Rendering
@@ -475,6 +609,7 @@
 
     setTimerCovered(0);
     startTimer();
+    scheduleLayoutFit();
     scheduleFit();
   }
 

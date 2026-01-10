@@ -14,7 +14,11 @@
 
       --ui-pad-x: clamp(10px, 2vw, 20px);
       --ui-pad-y: clamp(10px, 2vh, 20px);
+
+      /* Core spacing (JS may override with px on very small screens) */
       --gap: clamp(10px, 2vw, 24px);
+      --grid-gap: clamp(10px, 1.2vw, 16px);
+      --ex-gap: clamp(8px, 1vw, 12px);
 
       --pause-w: clamp(120px, 18vw, 190px);
       --pause-h: clamp(40px, 6vw, 62px);
@@ -22,15 +26,15 @@
       --title-h: clamp(44px, 6.4vw, 86px);
       --hp-h: clamp(34px, 5vw, 62px);
 
-      /* Board sizes (main bigger, example smaller) */
+      /* Board sizes (JS may override with px to fit without scroll) */
       --tile: clamp(76px, 8.6vw, 128px);
       --ex-tile: clamp(28px, 3.2vw, 46px);
 
-      --grid-gap: clamp(10px, 1.2vw, 16px);
-      --ex-gap: clamp(8px, 1vw, 12px);
-
-      /* Answers column width (smaller than before) */
+      /* Answers */
       --ans-w: clamp(220px, 20vw, 320px);
+      --ans-cols: 2; /* JS may increase (e.g., 3~5) on small screens */
+      --ans-gap: var(--ans-gap);
+      --ans-aspect: 2.4 / 1;
     }
 
     html, body{
@@ -79,8 +83,9 @@
       pointer-events: none;
 
       display: grid;
-      grid-template-rows: auto 1fr auto; /* topbar / main / timer */
+      grid-template-rows: auto minmax(0, 1fr) auto; /* topbar / main / timer */
       row-gap: var(--gap);
+      box-sizing: border-box;
     }
 
     /* clickable areas */
@@ -97,6 +102,7 @@
       transition: transform 120ms ease;
       touch-action: manipulation;
       transform: translateZ(0);
+      box-sizing: border-box;
     }
     .ui-btn:active{ transform: scale(0.98); }
     @media (hover:hover) and (pointer:fine){
@@ -126,6 +132,7 @@
       grid-template-columns: auto 1fr auto;
       align-items: start;
       column-gap: var(--gap);
+      min-width: 0;
     }
 
     .pause-btn{
@@ -137,6 +144,7 @@
       display: flex;
       justify-content: center;
       align-items: flex-start;
+      min-width: 0;
     }
     .title img{
       height: var(--title-h);
@@ -149,6 +157,7 @@
       justify-content: flex-end;
       gap: clamp(4px, 0.8vw, 10px);
       padding-top: clamp(2px, 0.3vw, 8px);
+      min-width: 0;
     }
     .hp img{
       height: var(--hp-h);
@@ -158,16 +167,31 @@
     /* ===== Main layout (center board) ===== */
     .play-layout{
       display: grid;
-      grid-template-columns: 1fr auto 1fr; /* main board stays center */
+
+      /* IMPORTANT: minmax(0, 1fr) prevents right-side clipping due to min-content sizing */
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+
       align-items: center;
       justify-items: center;
       column-gap: var(--gap);
-      min-height: 0; /* avoid overflow weirdness */
+
+      min-height: 0;
+      min-width: 0;
+      box-sizing: border-box;
+      min-width: 0;
+      overflow: hidden; /* we must fit without scroll */
+      box-sizing: border-box;
     }
 
-    .panel-example{ justify-self: end; }
-    .panel-main{ justify-self: center; }
-    .panel-answers{ justify-self: start; width: min(100%, var(--ans-w)); }
+    .panel{
+      display: flex;
+      min-width: 0; /* prevents overflow clipping in grid columns */
+      width: 100%;
+    }
+
+    .panel-example{ justify-content: flex-end; }
+    .panel-main{ justify-content: center; }
+    .panel-answers{ justify-content: flex-start; }
 
     /* ===== Example board ===== */
     #exampleBoard.ex-grid{
@@ -241,6 +265,7 @@
       word-break: break-word;
       overflow: hidden;
       pointer-events: none;
+      min-width: 0;
     }
 
     .tile .txt .sub{
@@ -252,18 +277,24 @@
     }
 
     /* ===== Answers ===== */
+    .panel-answers > #answers{
+      width: min(100%, var(--ans-w));
+      min-width: 0;
+    }
+
     #answers.answers-grid{
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: clamp(10px, 1.2vw, 14px);
+      grid-template-columns: repeat(var(--ans-cols), minmax(0, 1fr));
+      gap: var(--ans-gap);
       width: 100%;
       align-content: center;
       justify-content: center;
+      min-width: 0;
     }
 
     .ans-btn{
       width: 100%;
-      aspect-ratio: 2.4 / 1;
+      aspect-ratio: var(--ans-aspect);
     }
 
     .ans-btn .label{
@@ -287,6 +318,7 @@
       word-break: break-word;
       overflow: hidden;
       pointer-events: none;
+      min-width: 0;
     }
 
     .ans-btn[disabled]{
@@ -344,6 +376,7 @@
       justify-items: center;
       padding-bottom: max(10px, var(--safe-bottom));
       pointer-events: none;
+      min-width: 0;
     }
 
     .timer-wrap{
@@ -418,35 +451,35 @@
       font-weight: 800;
     }
 
-    /* ===== Responsive: stack vertically ===== */
-    @media (max-width: 900px){
+    /* ===== Responsive: stack vertically (NO SCROLL) =====
+       - Some mobile browsers can report a large CSS width ("desktop site")
+         even in portrait. So we also trigger the mobile layout on
+         (orientation: portrait).
+       - The real "fit without scroll" happens in bingo.js (dynamic px vars).
+    */
+    @media (max-width: 900px), (orientation: portrait){
       :root{
-        --tile: clamp(72px, 18vw, 124px);
-        --ex-tile: clamp(26px, 7.2vw, 44px);
-        --ans-w: 100%;
+        --tile: clamp(54px, min(16vw, 10vh), 92px);
+        --ex-tile: clamp(18px, min(6.5vw, 4vh), 32px);
+        --grid-gap: clamp(6px, 1.4vw, 12px);
+        --ex-gap: clamp(4px, 1vw, 8px);
+        --ans-w: min(92vw, 360px);
+        --ans-aspect: 2.8 / 1;
       }
 
       .play-layout{
         grid-template-columns: 1fr;
         row-gap: var(--gap);
+        align-content: start;
+        overflow: hidden; /* keep: no scroll */
       }
 
-      .panel-example, .panel-main, .panel-answers{
-        justify-self: center;
-        width: 100%;
-        display: grid;
-        justify-items: center;
+      .panel{
+        justify-content: center !important;
       }
 
-      #answers.answers-grid{
-        max-width: 560px;
-      }
-    }
-
-    @media (max-width: 520px){
-      #answers.answers-grid{
-        grid-template-columns: 1fr;
-        max-width: 420px;
+      .panel-answers > #answers{
+        width: min(100%, var(--ans-w));
       }
     }
   </style>

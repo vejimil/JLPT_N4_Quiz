@@ -288,6 +288,16 @@
     }
 
     #answers.answers-grid{
+      /* for special layouts */
+      max-width: 100%;
+    }
+
+    /* If we render 10 answers as 3x3 + 1 centered, this centers the last one */
+    #answers[data-cols="3"] .ans-btn.ans-single{
+      grid-column: 2 / 3;
+    }
+
+    #answers.answers-grid{
       display: grid;
       grid-template-columns: repeat(var(--ans-cols), minmax(0, 1fr));
       gap: var(--ans-gap);
@@ -409,6 +419,8 @@
       position: absolute;
       top: 0;
       right: 0;
+      width: var(--timer-w); /* keep full image size; mask only clips */
+      height: 100%;
     }
 
     /* Overlay */
@@ -469,10 +481,10 @@
         --ex-gap: clamp(4px, 1vw, 8px);
 
         /* Answers: smaller buttons + more breathing room */
-        --ans-cols: 4;
-        --ans-w: min(92vw, 380px);
-        --ans-gap: clamp(10px, 2vw, 16px);
-        --ans-aspect: 3.0 / 1;
+        --ans-cols: 3;
+        --ans-w: min(92vw, 440px);
+        --ans-gap: clamp(12px, 2.2vw, 18px);
+        --ans-aspect: 2.8 / 1;
 
         /* Timer always inside screen */
         --timer-w: min(92vw, 560px);

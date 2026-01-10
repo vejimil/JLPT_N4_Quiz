@@ -209,6 +209,9 @@
       root.style.removeProperty('--pause-w');
       root.style.removeProperty('--pause-h');
       root.style.removeProperty('--hp-h');
+
+      elAnswers.dataset.cols = '2';
+      elAnswers.dataset.count = String(cfg.choices);
       return;
     }
 
@@ -229,7 +232,7 @@
     const baseAnsGap = pxVar('--ans-gap', 12);
 
     // Keep answer container inside screen (a bit smaller than layout width)
-    const baseAnsW = Math.min(availW * 0.92, pxVar('--ans-w', Math.min(availW * 0.92, 380)));
+    const baseAnsW = Math.min(availW * 0.96, pxVar('--ans-w', Math.min(availW * 0.96, 440)));
     const baseTileFromCSS = pxVar('--tile', Math.min(availW / gridSize, 72));
 
     // Slightly shrink topbar on very short screens
@@ -250,18 +253,25 @@
     const size = gridSize;
 
     // Use a slightly bigger aspect ratio to reduce height on mobile
-    const aspect = 3.0;
+    const aspect = 2.8;
 
-    // Prefer MORE columns on mobile so buttons are not huge and not stuck together.
+    // Prefer FEWER columns on mobile (bigger buttons).
+    // For 10 choices: default to 3x3 + 1 centered (user preference).
     const maxCols = Math.min(5, choices);
     let best = null;
 
-    for (let cols = maxCols; cols >= 2; cols--) {
+    const preferredCols = (() => {
+      if (choices === 10) return [3, 4, 5, 2];
+      if (choices === 6)  return [3, 4, 2];
+      return [3, 4, 5, 2];
+    })();
+
+    for (const cols of preferredCols) {
       for (let s = 1.00; s >= 0.66; s -= 0.02) {
-        const gap = Math.max(8, baseGap * s);
+        const gap = Math.max(10, baseGap * s);
         const gridGap = Math.max(4, baseGridGap * s);
         const exGap = Math.max(3, baseExGap * s);
-        const ansGap = Math.max(8, baseAnsGap * s);
+        const ansGap = Math.max(12, baseAnsGap * s);
 
         // Tile width cap by available width
         const tileMaxW = (availW - (size - 1) * gridGap) / size;
@@ -285,11 +295,10 @@
         const total = exH + gap + mainH + gap + answersH;
 
         if (total <= (availH - 6)) {
-          // Objective: maximize tile first, then maximize gap (less crowded)
-          if (!best || tile > best.tile || (Math.abs(tile - best.tile) < 0.2 && ansGap > best.ansGap)) {
-            best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
-          } else if (!best) {
-            best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+          // Objective: make answer buttons readable.
+          // 1) maximize button width, 2) maximize main tile (readability), 3) maximize spacing
+          if (!best || btnW > best.btnW || (Math.abs(btnW - best.btnW) < 0.5 && tile > best.tile) || (Math.abs(btnW - best.btnW) < 0.5 && Math.abs(tile - best.tile) < 0.5 && ansGap > best.ansGap)) {
+            best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap, btnW };
           }
           break;
         }
@@ -302,17 +311,17 @@
       const cols = maxCols;
       const s = 0.66;
 
-      const gap = Math.max(8, baseGap * s);
+      const gap = Math.max(10, baseGap * s);
       const gridGap = Math.max(4, baseGridGap * s);
       const exGap = Math.max(3, baseExGap * s);
-      const ansGap = Math.max(8, baseAnsGap * s);
+      const ansGap = Math.max(12, baseAnsGap * s);
 
       const tileMaxW = (availW - (size - 1) * gridGap) / size;
       const tile = Math.max(40, Math.min(tileMaxW, baseTileFromCSS) * s);
       const exTile = clamp(tile * 0.34, 12, tile * 0.5);
       const ansW = clamp(baseAnsW * s, 190, availW * 0.96);
 
-      best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap };
+      best = { cols, tile, gridGap, exTile, exGap, ansW, ansGap, gap, btnW: (ansW - (cols - 1) * ansGap) / cols };
     }
 
     root.style.setProperty('--ans-cols', String(best.cols));
@@ -323,6 +332,11 @@
     root.style.setProperty('--ans-w', best.ansW.toFixed(2) + 'px');
     root.style.setProperty('--ans-gap', best.ansGap.toFixed(2) + 'px');
     root.style.setProperty('--gap', best.gap.toFixed(2) + 'px');
+
+    // For CSS helpers (e.g., centering last answer in 3-col layout)
+    elAnswers.dataset.cols = String(best.cols);
+    elAnswers.dataset.count = String(choices);
+    
   }
 
   function scheduleFitNow(){
@@ -421,6 +435,7 @@
 
   function renderAnswers(){
     elAnswers.innerHTML = '';
+    elAnswers.dataset.count = String(cfg.choices);
 
     const correct = targetIdxs.map(idx => ({
       tileIdx: idx,
@@ -444,7 +459,17 @@
 
     const all = shuffle(correct.concat(decoys));
 
-    all.forEach(item => {
+    // If we want 10 answers as 3x3 + 1 centered (better readability),
+    // render 9 first, then place 1 as a centered last row.
+    const wantsTenSpecial = (cfg.choices === 10);
+    let single = null;
+    let list = all;
+    if (wantsTenSpecial && all.length === 10) {
+      list = all.slice(0, 9);
+      single = all[9];
+    }
+
+    list.forEach(item => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'ui-btn ans-btn clickable';
@@ -464,6 +489,28 @@
       b.appendChild(t);
       elAnswers.appendChild(b);
     });
+
+    if (single) {
+      const item = single;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ui-btn ans-btn ans-single clickable';
+      b.dataset.tileIdx = String(item.tileIdx);
+      b.dataset.isTarget = item.isTarget ? '1' : '0';
+
+      const img = document.createElement('img');
+      img.className = 'bg-img';
+      img.src = 'assets/Bingo_Button_Answer.png';
+      img.alt = '';
+
+      const t = document.createElement('div');
+      t.className = 'label';
+      t.textContent = item.text;
+
+      b.appendChild(img);
+      b.appendChild(t);
+      elAnswers.appendChild(b);
+    }
   }
 
   // ----------------------------

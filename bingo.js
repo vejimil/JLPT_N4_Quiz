@@ -15,6 +15,7 @@
 */
 
 (() => {
+  'use strict';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -139,6 +140,13 @@
   const backBtn = $('#backBtn');
   const retryBtn = $('#retryBtn');
 
+  // Overlay title assets by state (keep filenames as-is, including spaces/apostrophes).
+  const OVERLAY_TITLES = {
+    pause:   { src: 'assets/PAUSE.png', alt: 'PAUSE' },
+    gameover:{ src: 'assets/GAME OVER.png', alt: 'GAME OVER' },
+    timeup:  { src: 'assets/TIME’S UP.png', alt: "TIME'S UP" },
+  };
+
   if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp || !elUI || !elTopbar || !elTimerBar || !elPlayLayout) return;
 
   const lang = normalizeLang(qsParam('lang', 'ja'));
@@ -158,7 +166,70 @@
 
   const tiles = [];
   let targetIdxs = [];
+  let targetSet = new Set(); // O(1) membership checks; keep targetIdxs for stable order
   let remainingTargets = 0;
+
+  /**
+   * Build one round's immutable data from a vocabulary pool.
+   *
+   * Why: the round generation (random picks, target pattern selection) is pure game
+   * logic and easier to test/review when it does not touch the DOM.
+   *
+   * IMPORTANT: Keep behavior identical:
+   * - Randomness uses Math.random()
+   * - targetIdxs order is preserved (affects answer ordering before shuffle)
+   */
+  function buildRound(pairs, total, size, targetCount){
+    const chosen = pickUnique(pairs, total);
+    const idxs = pickPattern(size, targetCount);
+    const set = new Set(idxs);
+    const roundTiles = Array.from({ length: total }, (_, i) => ({
+      pair: chosen[i],
+      isTarget: set.has(i),
+      solved: false,
+    }));
+    return { chosen, targetIdxs: idxs, targetSet: set, tiles: roundTiles };
+  }
+
+  /**
+   * Derive the answer button contents from current tiles.
+   * Returns a shuffled list of items and an optional "single" item used for
+   * the special mobile layout (10 = 3x3 + 1 centered).
+   */
+  function buildAnswerItems(tilesArr, idxs, set, choiceCount){
+    const correct = idxs.map(idx => ({
+      tileIdx: idx,
+      text: tilesArr[idx]?.pair?.a || '',
+      isTarget: true,
+    }));
+
+    const decoyPool = tilesArr
+      .map((t, idx) => ({ tileIdx: idx, text: t?.pair?.a || '', isTarget: false }))
+      .filter(x => !set.has(x.tileIdx));
+
+    const usedText = new Set(correct.map(c => c.text));
+    const decoys = [];
+    shuffle(decoyPool);
+    for (const d of decoyPool) {
+      if (decoys.length >= Math.max(0, choiceCount - correct.length)) break;
+      if (!d.text || usedText.has(d.text)) continue;
+      usedText.add(d.text);
+      decoys.push(d);
+    }
+
+    const all = shuffle(correct.concat(decoys));
+
+    // Mobile readability preference: 10 answers should render as 3x3 + 1 centered.
+    const wantsTenSpecial = (choiceCount === 10);
+    let single = null;
+    let list = all;
+    if (wantsTenSpecial && all.length === 10) {
+      list = all.slice(0, 9);
+      single = all[9];
+    }
+
+    return { list, single };
+  }
 
   // ----------------------------
   // Text auto-fit
@@ -427,7 +498,7 @@
     elExample.style.setProperty('--grid-size', String(gridSize));
     elExample.innerHTML = '';
     for (let i = 0; i < totalTiles; i++) {
-      const isTarget = targetIdxs.includes(i);
+      const isTarget = targetSet.has(i);
       const img = document.createElement('img');
       img.className = 'ex-tile';
       img.src = isTarget ? 'assets/Bingo_Panel_Red_Example.png' : 'assets/Bingo_Panel_Blue_Example.png';
@@ -440,37 +511,7 @@
     elAnswers.innerHTML = '';
     elAnswers.dataset.count = String(cfg.choices);
 
-    const correct = targetIdxs.map(idx => ({
-      tileIdx: idx,
-      text: tiles[idx]?.pair?.a || '',
-      isTarget: true,
-    }));
-
-    const decoyPool = tiles
-      .map((t, idx) => ({ tileIdx: idx, text: t?.pair?.a || '', isTarget: false }))
-      .filter(x => !targetIdxs.includes(x.tileIdx));
-
-    const usedText = new Set(correct.map(c => c.text));
-    const decoys = [];
-    shuffle(decoyPool);
-    for (const d of decoyPool) {
-      if (decoys.length >= Math.max(0, cfg.choices - correct.length)) break;
-      if (!d.text || usedText.has(d.text)) continue;
-      usedText.add(d.text);
-      decoys.push(d);
-    }
-
-    const all = shuffle(correct.concat(decoys));
-
-    // If we want 10 answers as 3x3 + 1 centered (better readability),
-    // render 9 first, then place 1 as a centered last row.
-    const wantsTenSpecial = (cfg.choices === 10);
-    let single = null;
-    let list = all;
-    if (wantsTenSpecial && all.length === 10) {
-      list = all.slice(0, 9);
-      single = all[9];
-    }
+    const { list, single } = buildAnswerItems(tiles, targetIdxs, targetSet, cfg.choices);
 
     list.forEach(item => {
       const b = document.createElement('button');
@@ -529,16 +570,13 @@
     if (!overlay) return;
     overlay.dataset.state = state;
 
-    // Title: image first; text fallback (e.g., win)
+    // Title: image first; text fallback (e.g., win).
+    // NOTE: Keep the same asset filenames (including spaces/apostrophes) to preserve behavior.
     if (overlayTitleImg) {
-      let src = '';
-      let alt = '';
-      if (state === 'pause') { src = 'assets/PAUSE.png'; alt = 'PAUSE'; }
-      if (state === 'gameover') { src = 'assets/GAME OVER.png'; alt = 'GAME OVER'; }
-      if (state === 'timeup') { src = 'assets/TIME’S UP.png'; alt = "TIME'S UP"; }
-      if (src) {
-        overlayTitleImg.src = src;
-        overlayTitleImg.alt = alt;
+      const title = OVERLAY_TITLES[state];
+      if (title && title.src) {
+        overlayTitleImg.src = title.src;
+        overlayTitleImg.alt = title.alt || '';
         overlayTitleImg.style.display = '';
         if (overlayTitleText) overlayTitleText.style.display = 'none';
       } else {
@@ -639,8 +677,10 @@
     renderHearts();
     closeOverlay();
 
+    // -------- Round data (pure rules) --------
     let pairs = getPairs(lang);
 
+    // Ensure we always have enough pairs to fill the board + decoys.
     const minNeeded = totalTiles + cfg.choices;
     if (!pairs || pairs.length < minNeeded) {
       const base = (pairs || []).slice();
@@ -651,15 +691,13 @@
       pairs = base;
     }
 
-    const chosen = pickUnique(pairs, totalTiles);
-
-    targetIdxs = pickPattern(gridSize, cfg.target);
+    const round = buildRound(pairs, totalTiles, gridSize, cfg.target);
+    targetIdxs = round.targetIdxs;
+    targetSet = round.targetSet;
     remainingTargets = cfg.target;
 
     tiles.length = 0;
-    for (let i = 0; i < totalTiles; i++) {
-      tiles.push({ pair: chosen[i], isTarget: targetIdxs.includes(i), solved: false });
-    }
+    tiles.push(...round.tiles);
 
     renderExample();
     renderBoard();

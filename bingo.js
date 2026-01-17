@@ -15,6 +15,7 @@
 */
 
 (() => {
+  'use strict';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -139,6 +140,13 @@
   const backBtn = $('#backBtn');
   const retryBtn = $('#retryBtn');
 
+  // Overlay title assets by state (keep filenames as-is, including spaces/apostrophes).
+  const OVERLAY_TITLES = {
+    pause:   { src: 'assets/PAUSE.png', alt: 'PAUSE' },
+    gameover:{ src: 'assets/GAME OVER.png', alt: 'GAME OVER' },
+    timeup:  { src: 'assets/TIME’S UP.png', alt: "TIME'S UP" },
+  };
+
   if (!elExample || !elBoard || !elAnswers || !elTimerMask || !elHp || !elUI || !elTopbar || !elTimerBar || !elPlayLayout) return;
 
   const lang = normalizeLang(qsParam('lang', 'ja'));
@@ -158,6 +166,7 @@
 
   const tiles = [];
   let targetIdxs = [];
+  let targetSet = new Set(); // O(1) membership checks; keep targetIdxs for stable order
   let remainingTargets = 0;
 
   // ----------------------------
@@ -427,7 +436,7 @@
     elExample.style.setProperty('--grid-size', String(gridSize));
     elExample.innerHTML = '';
     for (let i = 0; i < totalTiles; i++) {
-      const isTarget = targetIdxs.includes(i);
+      const isTarget = targetSet.has(i);
       const img = document.createElement('img');
       img.className = 'ex-tile';
       img.src = isTarget ? 'assets/Bingo_Panel_Red_Example.png' : 'assets/Bingo_Panel_Blue_Example.png';
@@ -448,7 +457,7 @@
 
     const decoyPool = tiles
       .map((t, idx) => ({ tileIdx: idx, text: t?.pair?.a || '', isTarget: false }))
-      .filter(x => !targetIdxs.includes(x.tileIdx));
+      .filter(x => !targetSet.has(x.tileIdx));
 
     const usedText = new Set(correct.map(c => c.text));
     const decoys = [];
@@ -529,16 +538,13 @@
     if (!overlay) return;
     overlay.dataset.state = state;
 
-    // Title: image first; text fallback (e.g., win)
+    // Title: image first; text fallback (e.g., win).
+    // NOTE: Keep the same asset filenames (including spaces/apostrophes) to preserve behavior.
     if (overlayTitleImg) {
-      let src = '';
-      let alt = '';
-      if (state === 'pause') { src = 'assets/PAUSE.png'; alt = 'PAUSE'; }
-      if (state === 'gameover') { src = 'assets/GAME OVER.png'; alt = 'GAME OVER'; }
-      if (state === 'timeup') { src = 'assets/TIME’S UP.png'; alt = "TIME'S UP"; }
-      if (src) {
-        overlayTitleImg.src = src;
-        overlayTitleImg.alt = alt;
+      const title = OVERLAY_TITLES[state];
+      if (title && title.src) {
+        overlayTitleImg.src = title.src;
+        overlayTitleImg.alt = title.alt || '';
         overlayTitleImg.style.display = '';
         if (overlayTitleText) overlayTitleText.style.display = 'none';
       } else {
@@ -654,11 +660,12 @@
     const chosen = pickUnique(pairs, totalTiles);
 
     targetIdxs = pickPattern(gridSize, cfg.target);
+    targetSet = new Set(targetIdxs);
     remainingTargets = cfg.target;
 
     tiles.length = 0;
     for (let i = 0; i < totalTiles; i++) {
-      tiles.push({ pair: chosen[i], isTarget: targetIdxs.includes(i), solved: false });
+      tiles.push({ pair: chosen[i], isTarget: targetSet.has(i), solved: false });
     }
 
     renderExample();

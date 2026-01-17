@@ -1,5 +1,7 @@
 // app.js
 
+'use strict';
+
 // ===== 언어 설정 =====
 const LANGS = {
   ja: {
@@ -79,41 +81,47 @@ let globalStats = {
   wrongWordIds: [], // 전체 오답 단어 id 모음
 };
 
+// ===== Small shared helpers (keep behavior, reduce repetition) =====
+function byId(id){
+  // Centralized DOM lookup: makes future refactors/test stubs easier.
+  return document.getElementById(id);
+}
+
+function safeJsonParse(raw, fallback){
+  // Parsing localStorage should never crash the app; fall back to safe defaults.
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function uniq(arr){
+  // Preserve first-seen order; useful for showing wrong answers nicely.
+  return Array.from(new Set(arr));
+}
+
 // ===== 로컬스토리지 =====
 function loadGlobalStats() {
+  const key = getStorageKey();
+  const base = { totalQuestions: 0, totalCorrect: 0, wrongWordIds: [] };
+
   try {
-    const key = getStorageKey();
     const raw = localStorage.getItem(key);
-
-    const base = {
-      totalQuestions: 0,
-      totalCorrect: 0,
-      wrongWordIds: [],
-    };
-
     if (!raw) {
-      // 저장된 기록이 없으면 기본값으로 초기화
-      globalStats = base;
+      globalStats = { ...base };
       return;
     }
 
-    const parsed = JSON.parse(raw);
-
+    const parsed = safeJsonParse(raw, null);
     globalStats = {
       ...base,
-      ...(parsed && typeof parsed === "object" ? parsed : {}),
-      wrongWordIds:
-        parsed && Array.isArray(parsed.wrongWordIds)
-          ? parsed.wrongWordIds
-          : [],
+      ...(parsed && typeof parsed === 'object' ? parsed : {}),
+      wrongWordIds: parsed && Array.isArray(parsed.wrongWordIds) ? parsed.wrongWordIds : [],
     };
   } catch (e) {
-    console.error("통계 불러오기 오류", e);
-    globalStats = {
-      totalQuestions: 0,
-      totalCorrect: 0,
-      wrongWordIds: [],
-    };
+    console.error('통계 불러오기 오류', e);
+    globalStats = { ...base };
   }
 }
 
@@ -163,9 +171,12 @@ const LEVEL_MESSAGES = {
 
 
 function updateCharacterPanel() {
-  const levelSpan = document.getElementById("whale-level");
-  const xpFill = document.getElementById("xp-fill");
-  const msgEl = document.getElementById("whale-message");
+  const levelSpan = byId("whale-level");
+  const xpFill = byId("xp-fill");
+  const msgEl = byId("whale-message");
+
+  // Defensive: the panel is expected to exist, but we avoid crashing if HTML changes.
+  if (!levelSpan || !xpFill || !msgEl) return;
 
   const level = calcLevel(globalStats.totalCorrect);
   const ratio = calcXpRatio(globalStats.totalCorrect);
@@ -580,11 +591,12 @@ function generateExamQuestions(_modeIgnored, count, wordPool) {
 
 // ===== UI 관련 =====
 function showPanel(panelId) {
-  document.getElementById("setup-panel").hidden = true;
-  document.getElementById("quiz-panel").hidden = true;
-  document.getElementById("result-panel").hidden = true;
-
-  document.getElementById(panelId).hidden = false;
+  // Single place to manage panel visibility (avoids forgetting to hide a panel).
+  const panels = ["setup-panel", "quiz-panel", "result-panel"];
+  panels.forEach((id) => {
+    const el = byId(id);
+    if (el) el.hidden = id !== panelId;
+  });
 }
 
 // ===== 언어 변경 =====
@@ -599,7 +611,7 @@ function setLanguage(lang) {
   // 헤더 텍스트 변경
   const titleEl = document.getElementById("app-title");
   const nameEl = document.getElementById("character-name");
-  const msgEl = document.getElementById("whale-message");
+  const msgEl = byId("whale-message");
 
   if (titleEl) titleEl.textContent = cfg.title;
   if (nameEl) nameEl.textContent = cfg.characterName;
@@ -764,7 +776,7 @@ function showResult() {
   if (state.thisExamWrong.length === 0) {
     wrongListEl.textContent = "이번 시험에서는 틀린 단어가 없어요 🎉";
   } else {
-    const uniqueIds = [...new Set(state.thisExamWrong)];
+    const uniqueIds = uniq(state.thisExamWrong);
     const vocab = getCurrentVocab(); // ✅ 현재 언어 단어장 사용
 
     uniqueIds.forEach((id) => {
@@ -869,6 +881,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const reviewWrongBtn = document.getElementById("review-wrong-btn");
   const endBtn = document.getElementById("end-btn");
 
+  const goGameBtn = document.getElementById("go-game-btn");
+
   startExamBtn.addEventListener("click", () => {
     startNewExam(false);
   });
@@ -891,11 +905,11 @@ document.addEventListener("DOMContentLoaded", () => {
   endBtn.addEventListener("click", () => {
     showPanel("setup-panel");
   });
+
+  if (goGameBtn) {
+    goGameBtn.addEventListener("click", () => {
+      window.location.href = "./game.html";
+    });
+  }
 });
 
-const goGameBtn = document.getElementById("go-game-btn");
-if (goGameBtn) {
-  goGameBtn.addEventListener("click", () => {
-    window.location.href = "./game.html";
-  });
-}

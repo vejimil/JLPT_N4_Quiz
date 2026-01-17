@@ -491,9 +491,25 @@
       flex-wrap: wrap;
     }
 
+    /* Overlay action buttons: text-only labels (no box) */
     .overlay-btn{
-      width: clamp(140px, 20vw, 190px);
-      height: clamp(44px, 6vw, 62px);
+      width: auto;
+      height: auto;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+    }
+
+    /* Override shared .label-img absolute-centering: make it a plain image */
+    .overlay-btn .label-img{
+      position: static;
+      transform: none;
+      display: block;
+      height: clamp(26px, 5.2vw, 48px);
+      width: auto;
+      max-width: 72vw;
     }
 
     /* Safety: if a title image is missing, show text fallback */
@@ -591,17 +607,14 @@
 
           <div class="overlay-actions">
             <button class="ui-btn overlay-btn clickable" id="resumeBtn" type="button" aria-label="Resume">
-              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
               <img class="label-img" src="assets/RESUME.png" alt="RESUME" />
             </button>
 
             <button class="ui-btn overlay-btn clickable" id="retryBtn" type="button" aria-label="Retry">
-              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
               <img class="label-img" src="assets/RETRY.png" alt="RETRY" />
             </button>
 
             <button class="ui-btn overlay-btn clickable" id="backBtn" type="button" aria-label="Back">
-              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
               <img class="label-img" src="assets/BACK.png" alt="BACK" />
             </button>
           </div>

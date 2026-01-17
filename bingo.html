@@ -437,38 +437,47 @@
 
     .overlay.show{ display: flex; }
 
-    .overlay .card{
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255,255,255,0.15);
+    .overlay-card{
+      width: min(92vw, 520px);
+      padding: clamp(14px, 2.2vw, 18px);
       border-radius: 18px;
-      padding: 18px 16px;
-      width: min(92vw, 420px);
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(15, 23, 42, 0.88);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55);
       text-align: center;
-      color: #fff;
     }
 
-    .overlay .card h2{
+    .overlay-title-img{
+      height: clamp(34px, 6.2vw, 66px);
+      width: auto;
+      max-width: 86vw;
+      margin: 2px auto 12px auto;
+      display: block;
+    }
+
+    .overlay-title-text{
+      display: none;
       margin: 0 0 10px 0;
       font-size: 20px;
+      font-weight: 900;
       letter-spacing: 0.5px;
     }
 
-    .overlay .row{
+    .overlay-actions{
       display: flex;
-      gap: 10px;
+      gap: clamp(10px, 2.2vw, 14px);
       justify-content: center;
       flex-wrap: wrap;
     }
 
-    .overlay .mini{
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(0,0,0,0.2);
-      color: #fff;
-      padding: 10px 12px;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 800;
+    .overlay-btn{
+      width: clamp(140px, 20vw, 190px);
+      height: clamp(44px, 6vw, 62px);
     }
+
+    /* Safety: if a title image is missing, show text fallback */
+    .overlay.no-title-img .overlay-title-img{ display:none; }
+    .overlay.no-title-img .overlay-title-text{ display:block; }
 
     /* ===== Responsive: stack vertically (NO SCROLL) ===== */
     @media (max-width: 900px), (orientation: portrait){
@@ -554,12 +563,25 @@
 
       <!-- Overlays -->
       <div class="overlay" id="overlay" aria-hidden="true">
-        <div class="card">
-          <h2 id="overlayTitle">Paused</h2>
-          <div class="row">
-            <button class="mini" id="resumeBtn">Resume</button>
-            <button class="mini" id="backBtn">Back</button>
-            <button class="mini" id="retryBtn">Retry</button>
+        <div class="overlay-card" role="dialog" aria-modal="true" aria-label="Game dialog">
+          <img id="overlayTitleImg" class="overlay-title-img" src="" alt="" />
+          <div id="overlayTitleText" class="overlay-title-text">Paused</div>
+
+          <div class="overlay-actions">
+            <button class="ui-btn overlay-btn clickable" id="resumeBtn" type="button" aria-label="Resume">
+              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
+              <img class="label-img" src="assets/RESUME.png" alt="RESUME" />
+            </button>
+
+            <button class="ui-btn overlay-btn clickable" id="retryBtn" type="button" aria-label="Retry">
+              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
+              <img class="label-img" src="assets/RETRY.png" alt="RETRY" />
+            </button>
+
+            <button class="ui-btn overlay-btn clickable" id="backBtn" type="button" aria-label="Back">
+              <img class="bg-img" src="assets/Button_Pause.png" alt="" />
+              <img class="label-img" src="assets/BACK.png" alt="BACK" />
+            </button>
           </div>
         </div>
       </div>
@@ -567,6 +589,7 @@
   </div>
 
   <!-- vocab sources -->
+
   <script src="vocab.js"></script>
   <script src="vocab-fr.js"></script>
   <script src="vocab-es.js"></script>

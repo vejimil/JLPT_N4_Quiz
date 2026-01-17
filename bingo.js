@@ -133,7 +133,8 @@
 
   const pauseBtn = $('#pauseBtn');
   const overlay = $('#overlay');
-  const overlayTitle = $('#overlayTitle');
+  const overlayTitleImg = $('#overlayTitleImg');
+  const overlayTitleText = $('#overlayTitleText');
   const resumeBtn = $('#resumeBtn');
   const backBtn = $('#backBtn');
   const retryBtn = $('#retryBtn');
@@ -518,8 +519,47 @@
   // ----------------------------
   // Overlay / timer
   // ----------------------------
+  function overlayStateFromTitle(title){
+    const t = String(title || '').toLowerCase();
+    if (t === 'paused') return 'pause';
+    if (t.includes('time')) return 'timeup';
+    if (t.includes('game over')) return 'gameover';
+    if (t.includes('bingo')) return 'win';
+    return 'generic';
+  }
+
+  function setOverlayTitle(title){
+    const state = overlayStateFromTitle(title);
+    let src = '';
+
+    if (state === 'pause') src = 'assets/PAUSE.png';
+    else if (state === 'gameover') src = 'assets/GAME OVER.png';
+    else if (state === 'timeup') src = 'assets/TIME’S UP.png';
+
+    // Fallback: show text when no asset exists (e.g., BINGO!)
+    if (overlayTitleImg && src) {
+      overlayTitleImg.src = src;
+      overlayTitleImg.alt = title;
+      overlay.classList.remove('no-title-img');
+    } else {
+      overlay.classList.add('no-title-img');
+      if (overlayTitleImg) {
+        overlayTitleImg.removeAttribute('src');
+        overlayTitleImg.alt = '';
+      }
+    }
+
+    if (overlayTitleText) overlayTitleText.textContent = title;
+
+    // Buttons visibility
+    if (resumeBtn) resumeBtn.style.display = (state === 'pause') ? '' : 'none';
+    if (retryBtn) retryBtn.style.display = (state === 'pause') ? 'none' : '';
+
+    overlay.dataset.state = state;
+  }
+
   function openOverlay(title){
-    overlayTitle.textContent = title;
+    setOverlayTitle(title);
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
   }
@@ -527,6 +567,7 @@
   function closeOverlay(){
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
+    overlay.dataset.state = '';
   }
 
   function setTimerCovered(frac){
@@ -633,7 +674,7 @@
     });
 
     resumeBtn.addEventListener('click', () => {
-      if (done && overlayTitle.textContent !== 'Paused') return;
+      if (overlay.dataset.state !== 'pause') return;
       paused = false;
       closeOverlay();
     });

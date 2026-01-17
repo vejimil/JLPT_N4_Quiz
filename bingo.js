@@ -519,47 +519,59 @@
   // ----------------------------
   // Overlay / timer
   // ----------------------------
-  function overlayStateFromTitle(title){
-    const t = String(title || '').toLowerCase();
-    if (t === 'paused') return 'pause';
-    if (t.includes('time')) return 'timeup';
-    if (t.includes('game over')) return 'gameover';
-    if (t.includes('bingo')) return 'win';
-    return 'generic';
+  function setOverlayVisibility(el, on){
+    if (!el) return;
+    el.style.display = on ? '' : 'none';
   }
 
-  function setOverlayTitle(title){
-    const state = overlayStateFromTitle(title);
-    let src = '';
+  function setOverlayState(state){
+    // state: 'pause' | 'gameover' | 'timeup' | 'win'
+    if (!overlay) return;
+    overlay.dataset.state = state;
 
-    if (state === 'pause') src = 'assets/PAUSE.png';
-    else if (state === 'gameover') src = 'assets/GAME OVER.png';
-    else if (state === 'timeup') src = 'assets/TIME’S UP.png';
-
-    // Fallback: show text when no asset exists (e.g., BINGO!)
-    if (overlayTitleImg && src) {
-      overlayTitleImg.src = src;
-      overlayTitleImg.alt = title;
-      overlay.classList.remove('no-title-img');
-    } else {
-      overlay.classList.add('no-title-img');
-      if (overlayTitleImg) {
-        overlayTitleImg.removeAttribute('src');
-        overlayTitleImg.alt = '';
+    // Title: image first; text fallback (e.g., win)
+    if (overlayTitleImg) {
+      let src = '';
+      let alt = '';
+      if (state === 'pause') { src = 'assets/PAUSE.png'; alt = 'PAUSE'; }
+      if (state === 'gameover') { src = 'assets/GAME OVER.png'; alt = 'GAME OVER'; }
+      if (state === 'timeup') { src = 'assets/TIME’S UP.png'; alt = "TIME'S UP"; }
+      if (src) {
+        overlayTitleImg.src = src;
+        overlayTitleImg.alt = alt;
+        overlayTitleImg.style.display = '';
+        if (overlayTitleText) overlayTitleText.style.display = 'none';
+      } else {
+        overlayTitleImg.style.display = 'none';
+        if (overlayTitleText) {
+          overlayTitleText.textContent = (state === 'win') ? 'BINGO!' : '';
+          overlayTitleText.style.display = '';
+        }
       }
     }
 
-    if (overlayTitleText) overlayTitleText.textContent = title;
+    // Actions: keep the reference layout (two corners).
+    // Pause: RESUME (left) + BACK (right)
+    // GameOver/TimeUp/Win: BACK (left) + RETRY (right)
+    if (state === 'pause') {
+      setOverlayVisibility(resumeBtn, true);
+      setOverlayVisibility(backBtn, true);
+      setOverlayVisibility(retryBtn, false);
 
-    // Buttons visibility
-    if (resumeBtn) resumeBtn.style.display = (state === 'pause') ? '' : 'none';
-    if (retryBtn) retryBtn.style.display = (state === 'pause') ? 'none' : '';
+      if (resumeBtn) resumeBtn.style.order = '0';
+      if (backBtn) backBtn.style.order = '1';
+    } else {
+      setOverlayVisibility(resumeBtn, false);
+      setOverlayVisibility(backBtn, true);
+      setOverlayVisibility(retryBtn, true);
 
-    overlay.dataset.state = state;
+      if (backBtn) backBtn.style.order = '0';
+      if (retryBtn) retryBtn.style.order = '1';
+    }
   }
 
-  function openOverlay(title){
-    setOverlayTitle(title);
+  function openOverlay(state){
+    setOverlayState(state);
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
   }
@@ -567,7 +579,6 @@
   function closeOverlay(){
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
-    overlay.dataset.state = '';
   }
 
   function setTimerCovered(frac){
@@ -593,7 +604,7 @@
       setTimerCovered(1 - (remainingMs / (cfg.timeSec * 1000)));
 
       if (remainingMs <= 0) {
-        gameOver("Time's up");
+        gameOver('timeup');
         return;
       }
     }
@@ -606,19 +617,19 @@
   function loseHeart(){
     hearts = clamp(hearts - 1, 0, 3);
     renderHearts();
-    if (hearts <= 0) gameOver('Game Over');
+    if (hearts <= 0) gameOver('gameover');
   }
 
-  function gameOver(title){
+  function gameOver(state){
     if (done) return;
     done = true;
-    openOverlay(title);
+    openOverlay(state);
   }
 
   function win(){
     if (done) return;
     done = true;
-    openOverlay('BINGO!');
+    openOverlay('win');
   }
 
   function reset(){
@@ -669,12 +680,12 @@
     pauseBtn.addEventListener('click', () => {
       if (done) return;
       paused = !paused;
-      if (paused) openOverlay('Paused');
+      if (paused) openOverlay('pause');
       else closeOverlay();
     });
 
     resumeBtn.addEventListener('click', () => {
-      if (overlay.dataset.state !== 'pause') return;
+      if (!overlay || overlay.dataset.state !== 'pause') return;
       paused = false;
       closeOverlay();
     });

@@ -1,0 +1,460 @@
+    /* =========================================================
+       0) CSS Variables (single place to tune layout & sizes)
+       - safe-area-inset: notch / home-indicator safe areas
+       - clamp(): smoothly scales values across device sizes
+       ========================================================= */
+    :root{
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+
+      --ui-pad-x: clamp(10px, 2vw, 20px);
+      --ui-pad-y: clamp(10px, 2vh, 20px);
+
+      --title-gap: clamp(6px, 1vh, 12px);
+
+      /* Title morph (default = Language screen) */
+      --title-top-gap: clamp(28px, 4vh, 52px);
+      --title1-h: clamp(46px, 6.2vw, 76px);
+      --title2-h: clamp(48px, 6.6vw, 79px);
+
+      /* Difficulty layout tuning */
+      --diff-gap: clamp(24px, 3vw, 40px);
+      --diff-top: 67%;
+      --diff-top-wide: 62%;
+
+      /* Title image sizes (default) */
+      --title1-w: min(72vw, 640px);
+      --title2-w: min(40vw, 360px);
+
+      /* Language buttons (default) */
+      --btn-gap: clamp(32px, 3.26vw, 48px);
+      --btn-w: clamp(180px, 17.95vw, 220px);
+      --btn-h: clamp(56px, 5.55vw, 68px);
+
+      /* Back button (default) */
+      --back-w: clamp(120px, 16vw, 180px);
+      --back-h: clamp(40px, 6.6vh, 58px);
+    }
+
+    /* =========================================================
+       1) Global / Reset
+       - Prevent scrolling: the screen should fit exactly
+       - Pixel-art friendly rendering for images
+       ========================================================= */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    img {
+      /* Keep pixel art crisp */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -ms-interpolation-mode: nearest-neighbor;
+
+      /* Prevent dragging/selecting */
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+
+    /* =========================================================
+       2) Stage (full-screen container)
+       - Background + UI are layered inside this element
+       ========================================================= */
+    .stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* =========================================================
+       3) Background
+       - Desktop background only (as requested)
+       - object-fit: cover keeps aspect ratio while filling screen
+       ========================================================= */
+    .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: translateZ(0);
+    }
+
+    /* =========================================================
+       3.5) Animation layer
+       - Used for the language -> difficulty split (ghost buttons)
+       - pointer-events:none so it never blocks clicks
+       ========================================================= */
+    .anim-layer{
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    /* =========================================================
+       4) UI Root Layer
+       - pointer-events:none by default to avoid blocking clicks
+       - Specific clickable areas re-enable pointer-events:auto
+       - Includes safe-area padding for notched devices
+       ========================================================= */
+    .ui {
+      position: absolute;
+      inset: 0;
+      padding:
+        calc(var(--ui-pad-y) + var(--safe-top))
+        calc(var(--ui-pad-x) + var(--safe-right))
+        calc(var(--ui-pad-y) + var(--safe-bottom))
+        calc(var(--ui-pad-x) + var(--safe-left));
+      display: block;
+      pointer-events: none;
+    }
+
+    /* =========================================================
+       5) Back button wrapper (top-left fixed position)
+       - This area must be clickable, so pointer-events:auto
+       ========================================================= */
+    .back-wrap{
+      position: absolute;
+      top: calc(var(--ui-pad-y) + var(--safe-top));
+      left: calc(var(--ui-pad-x) + var(--safe-left));
+      pointer-events: auto;
+      z-index: 10;
+    }
+
+    /* =========================================================
+       6) Shared button base (deduplicated)
+       - Used by .pix-btn (Back) and .lang-btn (Language)
+       - Hover/active scale effects included
+       - touch-action: improves mobile tap responsiveness
+       ========================================================= */
+    .pix-btn,
+    .lang-btn,
+    .diff-btn,
+    .ghost-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      display: inline-block;
+      transition: transform 120ms ease;
+      touch-action: manipulation;
+      transform: translateZ(0);
+    }
+
+    /* Press-down effect (also works on mobile taps) */
+    .pix-btn:active,
+    .lang-btn:active,
+    .diff-btn:active { transform: scale(0.98); }
+
+    /* Only apply hover zoom where hover exists (desktop mouse) */
+    @media (hover:hover) and (pointer:fine){
+      .pix-btn:hover,
+      .lang-btn:hover,
+      .diff-btn:hover { transform: scale(1.05); }
+    }
+
+    /* =========================================================
+       7) Back button sizing + images
+       - bg-img: fills the button box
+       - label-img: centered image label
+       ========================================================= */
+    .pix-btn{
+      width: var(--back-w);
+      height: var(--back-h);
+    }
+
+    .pix-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+
+    /* =========================================================
+       8) Shared label centering (deduplicated)
+       - Centers the label image for both Back and Language buttons
+       ========================================================= */
+    .pix-btn .label-img,
+    .lang-btn .label-img,
+    .diff-btn .label-img,
+    .ghost-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+    }
+
+    /* Back label size */
+    .pix-btn .label-img{
+      height: 48%;
+      max-width: 78%;
+    }
+
+    /* =========================================================
+       9) Title block (two-line title images)
+       - Positioned below the Back button with a safe gap
+       - Not clickable: pointer-events:none
+       ========================================================= */
+    .title{
+      position: absolute;
+      left: 50%;
+      top: calc(
+        var(--ui-pad-y) + var(--safe-top) + var(--back-h) + var(--title-top-gap)
+      );
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--title-gap);
+      pointer-events: none;
+      text-align: center;
+      z-index: 5;
+      transition: top 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .title .line1{
+      height: var(--title1-h);
+      width: auto;
+      max-width: 92vw;
+      transition: height 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .title .line2{
+      height: var(--title2-h); /* slightly bigger than line1 */
+      width: auto;
+      max-width: 92vw;
+      transition: height 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* =========================================================
+       9.5) Difficulty mode (title morph + fade language buttons)
+       ========================================================= */
+    body.difficulty-mode{
+      --title-top-gap: clamp(12px, 1.6vh, 20px);
+      --title1-h: clamp(28px, 3.4vw, 46px);
+      --title2-h: clamp(30px, 3.7vw, 48px);
+      --title-gap: clamp(4px, 0.8vh, 8px);
+    }
+
+    /* =========================================================
+       9.6) Merge-back mode (difficulty -> language)
+       - Keep language buttons hidden while ghost buttons merge
+       - Title returns to default when .difficulty-mode is removed
+       ========================================================= */
+    body.merging-mode .langs{
+      pointer-events: none;
+    }
+    body.merging-mode .langs .lang-btn{
+      opacity: 0;
+    }
+
+    body.difficulty-mode .langs{
+      pointer-events: none;
+    }
+    body.difficulty-mode .langs .lang-btn{
+      opacity: 0;
+    }
+
+    /* Smooth re-appearance after merge-back */
+    @keyframes langReveal{
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    body.lang-reveal .langs{ pointer-events: none; }
+    body.lang-reveal .langs .lang-btn{
+      animation: langReveal 240ms ease both;
+    }
+
+    /* =========================================================
+       10) Language buttons layout
+       - Default: vertical column
+       - Clickable: pointer-events:auto
+       ========================================================= */
+    .langs{
+      position: absolute;
+      left: 50%;
+      top: 67%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--btn-gap);
+      pointer-events: auto;
+      z-index: 6;
+    }
+
+    .lang-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
+      transition: transform 220ms ease, opacity 220ms ease;
+      will-change: transform, opacity;
+    }
+
+    .lang-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+
+      /* Subtle lift so buttons don’t blend into the background */
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+
+    .lang-btn .label-img{
+      height: 50%;
+      max-width: 82%;
+    }
+
+    /* =========================================================
+       10.5) Difficulty buttons layout (hidden until needed)
+       - Uses EASY.png / NORMAL.png / HARD.png assets
+       ========================================================= */
+    .diffs{
+      position: absolute;
+      left: 50%;
+      top: var(--diff-top);
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--diff-gap);
+      z-index: 6;
+
+      /* Hidden by default but still measurable */
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    /* Prep stage: make it visible (still transparent) so opacity can fade smoothly */
+    .diffs.is-prep{
+      visibility: visible;
+    }
+
+    .diff-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
+    }
+
+    .diff-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+
+    .diff-btn .label-img{
+      height: 50%;
+      max-width: 82%;
+    }
+
+    /* Wider screens: difficulty buttons in a row (like the screenshot) */
+    @media (min-aspect-ratio: 4/3){
+      .diffs{
+        flex-direction: row;
+        top: var(--diff-top-wide);
+      }
+    }
+
+    /* Visible/enabled state (set by JS after the split animation completes) */
+    body.difficulty-mode .diffs.is-ready{
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    /* =========================================================
+       10.6) Ghost button used for the split animation
+       ========================================================= */
+    .ghost-btn{
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      z-index: 100;
+      transform-origin: 0 0;
+      will-change: transform, opacity;
+    }
+    .ghost-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+    .ghost-btn .label-img{
+      height: 50%;
+      max-width: 82%;
+      opacity: 0;
+      transition: opacity 160ms ease;
+    }
+
+    .ghost-btn.show-label .label-img{ opacity: 1; }
+    .ghost-btn.fade-out{ opacity: 0; }
+
+    /* =========================================================
+       11) Wider screens: use row layout for language buttons
+       ========================================================= */
+    @media (min-aspect-ratio: 4/3){
+      .langs{
+        flex-direction: row;
+        top: 74%;
+        gap: 48px;
+      }
+    }
+
+    /* =========================================================
+       12) Very small phones: shrink buttons/title slightly
+       ========================================================= */
+    @media (max-width: 360px){
+      :root{
+        --back-w: clamp(110px, 42vw, 160px);
+        --back-h: clamp(38px, 6.2vh, 54px);
+        --title1-w: min(84vw, 560px);
+        --title2-w: min(87vw, 600px);
+      }
+      .langs{ top: 69%; }
+    }
+
+    /* =========================================================
+       13) Toast (temporary “Coming soon” notice)
+       - Hidden by default
+       - .show makes it visible and slightly lifted
+       ========================================================= */
+    .toast{
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--ui-pad-y) + var(--safe-bottom));
+      transform: translateX(-50%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 14px;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      border-radius: 999px;
+      padding: 10px 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 20;
+    }
+    .toast.show{
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
+    }

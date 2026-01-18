@@ -391,9 +391,6 @@
       pointer-events: auto;
     }
 
-    ==========
-       10.6) Ghost button used for the split animation
-       ========================================================= */
     .ghost-btn{
       position: absolute;
       left: 0;

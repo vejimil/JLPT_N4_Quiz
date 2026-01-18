@@ -4,12 +4,14 @@
   /**
    * Language -> Difficulty morph UI.
    *
-   * This screen now follows the flow:
-   *   Language -> Difficulty -> (popup) Game pick -> Navigate
+   * Goal:
+   * - Make the split/merge feel physically natural (1 button -> 3 buttons -> 1 button)
+   *   without “jumping” or “blinking” during the motion.
    *
-   * Why:
-   * - You asked to pick the difficulty first, then choose which mini-game (Bingo / Acid Rain).
-   * - This also scales naturally once you add more mini-games.
+   * Key idea:
+   * - Do NOT hide/disable the language buttons until AFTER ghost buttons exist.
+   *   Otherwise some browsers drop :hover state immediately (pointer-events changes),
+   *   changing the button rect before ghosts are created, which looks like a jump.
    */
 
   // -----------------------------
@@ -24,7 +26,118 @@
    * @param {string} selector
    * @param {ParentNode} [root]
    */
-  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  const $$ = (selector, root = document) =>
+    Array.from(root.querySelectorAll(selector));
+
+  // -----------------------------
+  // Geometry helpers
+  // -----------------------------
+
+  /**
+   * A small tolerance avoids infinite retries from subpixel rounding.
+   * @param {DOMRect} a
+   * @param {DOMRect} b
+   */
+  function rectAlmostEqual(a, b) {
+    const EPS = 0.75;
+    return (
+      Math.abs(a.left - b.left) < EPS &&
+      Math.abs(a.top - b.top) < EPS &&
+      Math.abs(a.width - b.width) < EPS &&
+      Math.abs(a.height - b.height) < EPS
+    );
+  }
+
+  /**
+   * Wait until a set of rects is stable for two consecutive frames.
+   *
+   * Why:
+   * - On some devices/browsers, toggling classes can cause a 1-frame transient
+   *   layout where rects are wrong. If we animate to those, the ghosts arrive
+   *   at the wrong place and the UI appears to "snap" after the crossfade.
+   *
+   * @param {() => DOMRect[]} getRects
+   * @param {(rects: DOMRect[]) => void} onStable
+   * @param {number} [maxFrames]
+   */
+  function waitForStableRects(getRects, onStable, maxFrames = 12) {
+    let prev = null;
+    let frames = 0;
+
+    function tick() {
+      const rects = getRects();
+
+      const hasAll = rects.length === 3;
+      const allSized = rects.every((r) => r.width > 0 && r.height > 0);
+
+      if (!hasAll || !allSized) {
+        frames += 1;
+        if (frames >= maxFrames) {
+          onStable(rects);
+          return;
+        }
+        window.requestAnimationFrame(tick);
+        return;
+      }
+
+      if (prev && rects.every((r, i) => rectAlmostEqual(r, prev[i]))) {
+        onStable(rects);
+        return;
+      }
+
+      prev = rects;
+      frames += 1;
+
+      if (frames >= maxFrames) {
+        onStable(rects);
+        return;
+      }
+      window.requestAnimationFrame(tick);
+    }
+
+    window.requestAnimationFrame(tick);
+  }
+
+  /**
+   * Single-rect variant of waitForStableRects().
+   * @param {() => DOMRect} getRect
+   * @param {(rect: DOMRect) => void} onStable
+   * @param {number} [maxFrames]
+   */
+  function waitForStableRect(getRect, onStable, maxFrames = 12) {
+    let prev = null;
+    let frames = 0;
+
+    function tick() {
+      const rect = getRect();
+      const sized = rect.width > 0 && rect.height > 0;
+
+      if (!sized) {
+        frames += 1;
+        if (frames >= maxFrames) {
+          onStable(rect);
+          return;
+        }
+        window.requestAnimationFrame(tick);
+        return;
+      }
+
+      if (prev && rectAlmostEqual(rect, prev)) {
+        onStable(rect);
+        return;
+      }
+
+      prev = rect;
+      frames += 1;
+      if (frames >= maxFrames) {
+        onStable(rect);
+        return;
+      }
+      window.requestAnimationFrame(tick);
+    }
+
+    window.requestAnimationFrame(tick);
+  }
 
   // -----------------------------
   // Timing constants (ms)
@@ -35,14 +148,17 @@
 
     // enterDifficulty()
     SPLIT_LABEL_SHOW: 120,
-    SPLIT_CROSSFADE: 320,
-    SPLIT_CLEANUP: 480,
+    // Crossfade at the end of the transform so ghosts and real buttons overlap perfectly
+    // (prevents the "teleport/blink" feel during the last part of the motion).
+    SPLIT_CROSSFADE: 420,
+    // Must be >= SPLIT_CROSSFADE + opacity transition to prevent a 1-frame pop.
+    SPLIT_CLEANUP: 640,
 
     // exitDifficulty()
     MERGE_LABEL_HIDE: 220,
-    MERGE_CROSSFADE: 320,
-    MERGE_CLEANUP: 500,
-    MERGE_REVEAL_CLEANUP: 560,
+    // Same reasoning as SPLIT_CROSSFADE: crossfade once the ghosts reach the target.
+    MERGE_CROSSFADE: 420,
+    MERGE_CLEANUP: 640,
 
     // fallback branch (no morph possible)
     FALLBACK_ANIM_END: 460,
@@ -63,8 +179,6 @@
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
-
-    // Game pick overlay (opens after difficulty selection)
     gamePickOverlay: $id('gamePickOverlay'),
     gamePickCancel: $id('gamePickCancel'),
   };
@@ -76,19 +190,25 @@
   const state = {
     toastTimer: null,
     isAnimating: false,
-
-    // When the user clicks a difficulty, we store it here until they pick the mini-game.
-    pending: {
-      lang: '',
-      diff: '',
-    },
-
-    isGamePickOpen: false,
+    pendingDiff: '',
   };
 
   // -----------------------------
-  // Toast
+  // Mini-game pick overlay (opened after selecting a difficulty)
   // -----------------------------
+
+  function openGamePick(diff) {
+    if (!els.gamePickOverlay) return;
+    state.pendingDiff = diff || '';
+    els.gamePickOverlay.classList.add('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeGamePick() {
+    if (!els.gamePickOverlay) return;
+    els.gamePickOverlay.classList.remove('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'true');
+  }
 
   function clearToastTimer() {
     if (state.toastTimer !== null) {
@@ -110,63 +230,6 @@
       if (els.toast) els.toast.classList.remove('show');
     }, TIME.TOAST_HIDE);
   }
-
-  // -----------------------------
-  // Game pick overlay (Difficulty -> Game)
-  // -----------------------------
-
-  /** @param {string} v */
-  function normalizeGame(v) {
-    return v === 'acidrain' ? 'acidrain' : 'bingo';
-  }
-
-  /** @param {string} v */
-  function normalizeDiff(v) {
-    return (v === 'easy' || v === 'hard') ? v : 'normal';
-  }
-
-  /** @param {string} v */
-  function normalizeLang(v) {
-    // Keep this conservative; other pages already default safely.
-    return (v === 'fr' || v === 'es' || v === 'ja') ? v : 'ja';
-  }
-
-  /** @param {string} diff */
-  function openGamePick(diff) {
-    if (!els.gamePickOverlay) return;
-
-    // Persist the user's intent, then ask for the remaining choice (mini-game).
-    state.pending.lang = normalizeLang(els.body?.dataset?.lang || 'ja');
-    state.pending.diff = normalizeDiff(diff);
-
-    els.gamePickOverlay.classList.add('show');
-    els.gamePickOverlay.setAttribute('aria-hidden', 'false');
-    state.isGamePickOpen = true;
-  }
-
-  function closeGamePick() {
-    if (!els.gamePickOverlay) return;
-
-    els.gamePickOverlay.classList.remove('show');
-    els.gamePickOverlay.setAttribute('aria-hidden', 'true');
-    state.isGamePickOpen = false;
-  }
-
-  /** @param {string} game */
-  function navigateToMiniGame(game) {
-    const g = normalizeGame(game);
-    const page = g === 'acidrain' ? 'acidrain.html' : 'bingo.html';
-
-    const lang = normalizeLang(state.pending.lang || 'ja');
-    const diff = normalizeDiff(state.pending.diff || 'normal');
-
-    const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
-    window.location.href = next;
-  }
-
-  // -----------------------------
-  // Split/Merge animation helpers
-  // -----------------------------
 
   /**
    * Create a ghost button used for the split/merge animation.
@@ -216,13 +279,11 @@
     if (!langBtn || !els.diffs || !els.animLayer) return;
     if (els.body.classList.contains('difficulty-mode')) return;
 
-    // If the user re-enters quickly, always reset the overlay.
-    closeGamePick();
-
     state.isAnimating = true;
+    els.body.classList.add('animating-morph');
 
-    // Clear any reveal animation class from previous transitions.
-    els.body.classList.remove('lang-reveal');
+    // Clear any overlay artifacts from previous transitions.
+    closeGamePick();
 
     const lang = langBtn.dataset.lang || '';
     els.body.dataset.lang = lang;
@@ -230,29 +291,58 @@
     // Capture the source position BEFORE any layout changes.
     const srcRect = langBtn.getBoundingClientRect();
 
-    // Title morph begins immediately via CSS variables.
-    els.body.classList.add('difficulty-mode');
-
-    // Hide targets until the split morph completes (prevents click/flash during animation).
-    els.diffs.classList.remove('is-ready');
-    els.diffs.classList.remove('is-prep');
+    // Make the difficulty container measurable in its *final layout*.
+    //
+    // Important:
+    // - The ghosts must animate to the exact position where the real buttons
+    //   will end up once the crossfade happens.
+    // - If we measure before the "final" state classes are applied, some
+    //   browsers show a 1-frame transient layout (wrong rects), which makes
+    //   the ghosts "arrive wrong" and then the real buttons snap into place.
+    //
+    // We apply .is-ready early (final state), but keep it visually hidden
+    // via .measuring until the ghosts arrive.
+    els.diffs.classList.add('is-prep');
+    els.diffs.classList.add('is-ready');
+    els.diffs.classList.add('measuring');
     els.diffs.setAttribute('aria-hidden', 'true');
 
-    // Measure targets AFTER difficulty layout is applied.
-    window.requestAnimationFrame(() => {
+    // Create ghosts FIRST (so there is never a blank frame).
+    const ghosts = [
+      createGhost('assets/EASY.png'),
+      createGhost('assets/NORMAL.png'),
+      createGhost('assets/HARD.png'),
+    ].filter(Boolean);
+
+    ghosts.forEach((g) => {
+      setGhostRect(g, srcRect);
+      els.animLayer.appendChild(g);
+    });
+
+    // Start title morph via CSS variables.
+    els.body.classList.add('difficulty-mode');
+
+    // Measure targets once the destination layout is stable.
+    const getTargetRects = () => {
       const targets = $$('.diff-btn', els.diffs);
-      const targetRects = targets.map((b) => b.getBoundingClientRect());
+      return targets.map((b) => b.getBoundingClientRect());
+    };
 
-      const ghosts = [
-        createGhost('assets/EASY.png'),
-        createGhost('assets/NORMAL.png'),
-        createGhost('assets/HARD.png'),
-      ].filter(Boolean);
+    waitForStableRects(getTargetRects, (targetRects) => {
+      const hasAll = targetRects.length === 3;
+      const allSized = targetRects.every((r) => r.width > 0 && r.height > 0);
 
-      ghosts.forEach((g) => {
-        setGhostRect(g, srcRect);
-        els.animLayer.appendChild(g);
-      });
+      // Fallback: if we still can't measure, skip the morph but still enter the screen.
+      if (!hasAll || !allSized) {
+        els.body.classList.add('langs-hidden');
+        els.diffs.classList.remove('measuring');
+        els.diffs.setAttribute('aria-hidden', 'false');
+        ghosts.forEach((g) => g.remove());
+        els.diffs.classList.remove('is-prep');
+        els.body.classList.remove('animating-morph');
+        state.isAnimating = false;
+        return;
+      }
 
       // Kick off the split morph.
       window.requestAnimationFrame(() => {
@@ -267,6 +357,10 @@
 
           g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
         });
+
+        // Now that ghosts exist, hide/disable the real language buttons.
+        // This prevents the “jump” caused by hover state being dropped too early.
+        els.body.classList.add('langs-hidden');
       });
 
       // Show labels after the split starts so text doesn't overlap at the beginning.
@@ -274,10 +368,11 @@
         ghosts.forEach((g) => g.classList.add('show-label'));
       }, TIME.SPLIT_LABEL_SHOW);
 
-      // Crossfade ghosts -> real difficulty buttons to avoid end-of-animation flicker.
+      // Crossfade ghosts -> real difficulty buttons.
+      // IMPORTANT: we only change opacity here (layout is already final),
+      // so there is no last-frame snap.
       window.setTimeout(() => {
-        els.diffs.classList.add('is-prep');
-        els.diffs.classList.add('is-ready');
+        els.diffs.classList.remove('measuring');
         els.diffs.setAttribute('aria-hidden', 'false');
         ghosts.forEach((g) => g.classList.add('fade-out'));
       }, TIME.SPLIT_CROSSFADE);
@@ -286,8 +381,10 @@
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
         els.diffs.classList.remove('is-prep');
+        els.body.classList.remove('animating-morph');
         state.isAnimating = false;
       }, TIME.SPLIT_CLEANUP);
+
     });
   }
 
@@ -299,25 +396,25 @@
     if (!els.diffs) return;
     if (!els.body.classList.contains('difficulty-mode')) return;
 
-    // Priority: if the game-pick popup is open, close it first.
-    if (state.isGamePickOpen) {
-      closeGamePick();
-      return;
-    }
-
     state.isAnimating = true;
+    els.body.classList.add('animating-morph');
 
     const lang = els.body.dataset.lang || '';
-    const langBtn = lang ? document.querySelector(`.lang-btn[data-lang="${lang}"]`) : null;
+    const langBtn = lang
+      ? document.querySelector(`.lang-btn[data-lang="${lang}"]`)
+      : null;
     const diffBtns = $$('.diff-btn', els.diffs);
 
     // Fallback (no lang selected / missing nodes)
     if (!langBtn || diffBtns.length !== 3 || !els.animLayer) {
       els.diffs.classList.remove('is-ready');
+      els.diffs.classList.remove('measuring');
+      els.diffs.classList.remove('is-prep');
       els.diffs.setAttribute('aria-hidden', 'true');
       els.body.classList.remove('difficulty-mode');
       els.body.dataset.lang = '';
       window.setTimeout(() => {
+        els.body.classList.remove('animating-morph');
         state.isAnimating = false;
       }, TIME.FALLBACK_ANIM_END);
       return;
@@ -339,33 +436,36 @@
       els.animLayer.appendChild(g);
     });
 
-    // Fade out real difficulty buttons (ghosts sit exactly on top, so no visual gap)
-    els.diffs.classList.add('is-prep');
-    els.diffs.classList.remove('is-ready');
+    // Hide the real difficulty buttons while keeping their *final layout* intact.
+    // (We keep .is-ready so their rects remain the same until the crossfade ends.)
+    els.diffs.classList.add('measuring');
     els.diffs.setAttribute('aria-hidden', 'true');
 
     // Keep language buttons hidden while we merge.
+    // NOTE: .langs-hidden is kept until the merge finishes.
     els.body.classList.add('merging-mode');
+    els.body.classList.add('langs-hidden');
 
     // Remove difficulty-mode on the next frame (avoids a 1-frame flash).
     window.requestAnimationFrame(() => {
       els.body.classList.remove('difficulty-mode');
 
       // Destination rect after layout returns to Language screen.
-      const dstRect = langBtn.getBoundingClientRect();
+      // Wait for a stable rect to avoid a 1-frame transient wrong position.
+      waitForStableRect(() => langBtn.getBoundingClientRect(), (dstRect) => {
+        // Kick off the merge animation.
+        window.requestAnimationFrame(() => {
+          ghosts.forEach((g, i) => {
+            const sr = srcRects[i];
+            if (!sr) return;
 
-      // Kick off the merge animation.
-      window.requestAnimationFrame(() => {
-        ghosts.forEach((g, i) => {
-          const sr = srcRects[i];
-          if (!sr) return;
+            const dx = dstRect.left - sr.left;
+            const dy = dstRect.top - sr.top;
+            const sx = dstRect.width / sr.width;
+            const sy = dstRect.height / sr.height;
 
-          const dx = dstRect.left - sr.left;
-          const dy = dstRect.top - sr.top;
-          const sx = dstRect.width / sr.width;
-          const sy = dstRect.height / sr.height;
-
-          g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+            g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+          });
         });
       });
 
@@ -374,26 +474,29 @@
         ghosts.forEach((g) => g.classList.remove('show-label'));
       }, TIME.MERGE_LABEL_HIDE);
 
-      // Crossfade ghosts out while language buttons fade/slide in.
+      // Crossfade ghosts out while language buttons fade in.
       window.setTimeout(() => {
         ghosts.forEach((g) => g.classList.add('fade-out'));
         els.body.classList.remove('merging-mode');
-        els.body.classList.add('lang-reveal');
+        els.body.classList.remove('langs-hidden');
       }, TIME.MERGE_CROSSFADE);
 
       // Cleanup.
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
+        els.diffs.classList.remove('is-ready');
+        els.diffs.classList.remove('measuring');
         els.diffs.classList.remove('is-prep');
         els.body.dataset.lang = '';
+        els.body.classList.remove('animating-morph');
         state.isAnimating = false;
       }, TIME.MERGE_CLEANUP);
 
-      // Remove reveal class after it plays.
-      window.setTimeout(() => {
-        els.body.classList.remove('lang-reveal');
-      }, TIME.MERGE_REVEAL_CLEANUP);
     });
+  }
+
+  function navigateTo(url) {
+    window.location.href = url;
   }
 
   // -----------------------------
@@ -402,18 +505,16 @@
 
   if (els.backBtn) {
     els.backBtn.addEventListener('click', () => {
-      // If the popup is open, BACK should only dismiss it (least surprising).
-      if (state.isGamePickOpen) {
+      // If the game-pick overlay is open, close it first.
+      if (els.gamePickOverlay?.classList.contains('show')) {
         closeGamePick();
         return;
       }
-
       if (els.body.classList.contains('difficulty-mode')) {
         exitDifficulty();
         return;
       }
-
-      window.location.href = './index.html';
+      navigateTo('./index.html');
     });
   }
 
@@ -421,7 +522,7 @@
     btn.addEventListener('click', () => enterDifficulty(btn));
   });
 
-  // Difficulty click opens the game-pick overlay instead of navigating immediately.
+  // Difficulty is selected first; then we pick which mini-game to launch.
   $$('.diff-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const diff = btn.dataset.diff || 'normal';
@@ -429,30 +530,27 @@
     });
   });
 
-  // Game pick buttons: choose the mini-game, then navigate.
-  $$('.pick-game-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const game = btn.dataset.game || 'bingo';
-      navigateToMiniGame(game);
-    });
-  });
-
-  // Explicit cancel (BACK) button inside the overlay.
-  if (els.gamePickCancel) {
-    els.gamePickCancel.addEventListener('click', () => closeGamePick());
-  }
-
-  // Click-outside to dismiss (safe/expected behavior for a modal).
+  // Overlay: click outside the dialog closes it.
   if (els.gamePickOverlay) {
     els.gamePickOverlay.addEventListener('click', (e) => {
       if (e.target === els.gamePickOverlay) closeGamePick();
     });
   }
 
-  // ESC closes the overlay (desktop ergonomics).
-  window.addEventListener('keydown', (e) => {
-    if (!state.isGamePickOpen) return;
-    if (e.key === 'Escape') closeGamePick();
+  if (els.gamePickCancel) {
+    els.gamePickCancel.addEventListener('click', closeGamePick);
+  }
+
+  $$('.pick-game-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const game = btn.dataset.game || 'bingo';
+      const lang = els.body.dataset.lang || 'ja';
+      const diff = state.pendingDiff || 'normal';
+
+      const page = game === 'acidrain' ? 'acidrain.html' : 'bingo.html';
+      const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
+      navigateTo(next);
+    });
   });
 
   // Prevent orphaned timers when the page is backgrounded or navigated away.

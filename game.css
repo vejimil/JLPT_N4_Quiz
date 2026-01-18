@@ -175,6 +175,24 @@
     }
 
     /* =========================================================
+       6.5) Animation safety: keep rects stable during morph
+       - Why: getBoundingClientRect() includes transform effects.
+         If hover/active transforms kick in mid-transition, the
+         destination rect can change and the ghosts appear to
+         “arrive wrong” then snap on crossfade.
+       - We disable hover/active transforms while the split/merge
+         animation is running.
+       ========================================================= */
+    body.animating-morph .pix-btn,
+    body.animating-morph .lang-btn,
+    body.animating-morph .diff-btn,
+    body.animating-morph .pick-game-btn,
+    body.animating-morph .pick-cancel-btn{
+      transition: none !important;
+      transform: none !important;
+    }
+
+    /* =========================================================
        7) Back button sizing + images
        - bg-img: fills the button box
        - label-img: centered image label
@@ -272,22 +290,25 @@
       opacity: 0;
     }
 
+    /*
+      NOTE: We decouple the "title morph" (.difficulty-mode) from the
+      "hide language buttons" step. Otherwise, some browsers drop the hover
+      state immediately when pointer-events change, and the button rect can
+      change *before* ghosts are created (causing a visible jump/blink).
+    */
     body.difficulty-mode .langs{
+      /* Keep measurable + stable for 1-frame; JS adds .langs-hidden when ready */
+      pointer-events: auto;
+    }
+    body.difficulty-mode.langs-hidden .langs{
       pointer-events: none;
     }
-    body.difficulty-mode .langs .lang-btn{
+    body.difficulty-mode.langs-hidden .langs .lang-btn{
       opacity: 0;
     }
 
-    /* Smooth re-appearance after merge-back */
-    @keyframes langReveal{
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    body.lang-reveal .langs{ pointer-events: none; }
-    body.lang-reveal .langs .lang-btn{
-      animation: langReveal 240ms ease both;
-    }
+    /* Re-appearance after merge-back is handled by the existing
+       opacity transition on .lang-btn (no translate = no "final jump"). */
 
     /* =========================================================
        10) Language buttons layout
@@ -357,6 +378,17 @@
       visibility: visible;
     }
 
+    /* Measuring stage:
+       - We sometimes need .is-ready applied (final layout) for correct rects,
+         but we must keep it visually hidden until the ghosts arrive.
+       - This class forces opacity to 0 even if .is-ready would make it 1.
+     */
+    .diffs.measuring{
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: visible !important;
+    }
+
     .diff-btn{
       width: var(--btn-w);
       height: var(--btn-h);
@@ -391,6 +423,9 @@
       pointer-events: auto;
     }
 
+    /* =========================================================
+       10.6) Ghost button used for the split animation
+       ========================================================= */
     .ghost-btn{
       position: absolute;
       left: 0;

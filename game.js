@@ -4,10 +4,12 @@
   /**
    * Language -> Difficulty morph UI.
    *
-   * Refactor intent:
-   * - Keep user-visible behavior identical.
-   * - Make timing/constants/state explicit.
-   * - Keep DOM access centralized and guarded.
+   * This screen now follows the flow:
+   *   Language -> Difficulty -> (popup) Game pick -> Navigate
+   *
+   * Why:
+   * - You asked to pick the difficulty first, then choose which mini-game (Bingo / Acid Rain).
+   * - This also scales naturally once you add more mini-games.
    */
 
   // -----------------------------
@@ -22,8 +24,7 @@
    * @param {string} selector
    * @param {ParentNode} [root]
    */
-  const $$ = (selector, root = document) =>
-    Array.from(root.querySelectorAll(selector));
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
   // -----------------------------
   // Timing constants (ms)
@@ -62,7 +63,10 @@
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
-    games: $id('games'),
+
+    // Game pick overlay (opens after difficulty selection)
+    gamePickOverlay: $id('gamePickOverlay'),
+    gamePickCancel: $id('gamePickCancel'),
   };
 
   // -----------------------------
@@ -72,10 +76,19 @@
   const state = {
     toastTimer: null,
     isAnimating: false,
-    // Which mini-game the difficulty buttons should launch.
-    // Default stays Bingo so existing behavior remains the same unless the user changes it.
-    selectedGame: 'bingo',
+
+    // When the user clicks a difficulty, we store it here until they pick the mini-game.
+    pending: {
+      lang: '',
+      diff: '',
+    },
+
+    isGamePickOpen: false,
   };
+
+  // -----------------------------
+  // Toast
+  // -----------------------------
 
   function clearToastTimer() {
     if (state.toastTimer !== null) {
@@ -99,7 +112,7 @@
   }
 
   // -----------------------------
-  // Game selection (Bingo / Acid Rain)
+  // Game pick overlay (Difficulty -> Game)
   // -----------------------------
 
   /** @param {string} v */
@@ -107,21 +120,53 @@
     return v === 'acidrain' ? 'acidrain' : 'bingo';
   }
 
-  /**
-   * Update the "selected" styling + aria state for game buttons.
-   * Why: the difficulty buttons navigate based on this selection.
-   * @param {string} game
-   */
-  function setSelectedGame(game) {
-    state.selectedGame = normalizeGame(game);
-
-    $$('.game-btn').forEach((b) => {
-      const g = normalizeGame(b.dataset.game || 'bingo');
-      const isSelected = g === state.selectedGame;
-      b.classList.toggle('is-selected', isSelected);
-      b.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-    });
+  /** @param {string} v */
+  function normalizeDiff(v) {
+    return (v === 'easy' || v === 'hard') ? v : 'normal';
   }
+
+  /** @param {string} v */
+  function normalizeLang(v) {
+    // Keep this conservative; other pages already default safely.
+    return (v === 'fr' || v === 'es' || v === 'ja') ? v : 'ja';
+  }
+
+  /** @param {string} diff */
+  function openGamePick(diff) {
+    if (!els.gamePickOverlay) return;
+
+    // Persist the user's intent, then ask for the remaining choice (mini-game).
+    state.pending.lang = normalizeLang(els.body?.dataset?.lang || 'ja');
+    state.pending.diff = normalizeDiff(diff);
+
+    els.gamePickOverlay.classList.add('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'false');
+    state.isGamePickOpen = true;
+  }
+
+  function closeGamePick() {
+    if (!els.gamePickOverlay) return;
+
+    els.gamePickOverlay.classList.remove('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'true');
+    state.isGamePickOpen = false;
+  }
+
+  /** @param {string} game */
+  function navigateToMiniGame(game) {
+    const g = normalizeGame(game);
+    const page = g === 'acidrain' ? 'acidrain.html' : 'bingo.html';
+
+    const lang = normalizeLang(state.pending.lang || 'ja');
+    const diff = normalizeDiff(state.pending.diff || 'normal');
+
+    const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
+    window.location.href = next;
+  }
+
+  // -----------------------------
+  // Split/Merge animation helpers
+  // -----------------------------
 
   /**
    * Create a ghost button used for the split/merge animation.
@@ -171,6 +216,9 @@
     if (!langBtn || !els.diffs || !els.animLayer) return;
     if (els.body.classList.contains('difficulty-mode')) return;
 
+    // If the user re-enters quickly, always reset the overlay.
+    closeGamePick();
+
     state.isAnimating = true;
 
     // Clear any reveal animation class from previous transitions.
@@ -189,15 +237,6 @@
     els.diffs.classList.remove('is-ready');
     els.diffs.classList.remove('is-prep');
     els.diffs.setAttribute('aria-hidden', 'true');
-
-    if (els.games) {
-      els.games.classList.remove('is-ready');
-      els.games.classList.remove('is-prep');
-      els.games.setAttribute('aria-hidden', 'true');
-    }
-
-    // Default game remains Bingo to preserve existing behavior.
-    setSelectedGame('bingo');
 
     // Measure targets AFTER difficulty layout is applied.
     window.requestAnimationFrame(() => {
@@ -240,12 +279,6 @@
         els.diffs.classList.add('is-prep');
         els.diffs.classList.add('is-ready');
         els.diffs.setAttribute('aria-hidden', 'false');
-
-        if (els.games) {
-          els.games.classList.add('is-prep');
-          els.games.classList.add('is-ready');
-          els.games.setAttribute('aria-hidden', 'false');
-        }
         ghosts.forEach((g) => g.classList.add('fade-out'));
       }, TIME.SPLIT_CROSSFADE);
 
@@ -253,7 +286,6 @@
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
         els.diffs.classList.remove('is-prep');
-        if (els.games) els.games.classList.remove('is-prep');
         state.isAnimating = false;
       }, TIME.SPLIT_CLEANUP);
     });
@@ -267,12 +299,16 @@
     if (!els.diffs) return;
     if (!els.body.classList.contains('difficulty-mode')) return;
 
+    // Priority: if the game-pick popup is open, close it first.
+    if (state.isGamePickOpen) {
+      closeGamePick();
+      return;
+    }
+
     state.isAnimating = true;
 
     const lang = els.body.dataset.lang || '';
-    const langBtn = lang
-      ? document.querySelector(`.lang-btn[data-lang="${lang}"]`)
-      : null;
+    const langBtn = lang ? document.querySelector(`.lang-btn[data-lang="${lang}"]`) : null;
     const diffBtns = $$('.diff-btn', els.diffs);
 
     // Fallback (no lang selected / missing nodes)
@@ -307,12 +343,6 @@
     els.diffs.classList.add('is-prep');
     els.diffs.classList.remove('is-ready');
     els.diffs.setAttribute('aria-hidden', 'true');
-
-    if (els.games) {
-      els.games.classList.add('is-prep');
-      els.games.classList.remove('is-ready');
-      els.games.setAttribute('aria-hidden', 'true');
-    }
 
     // Keep language buttons hidden while we merge.
     els.body.classList.add('merging-mode');
@@ -355,7 +385,6 @@
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
         els.diffs.classList.remove('is-prep');
-        if (els.games) els.games.classList.remove('is-prep');
         els.body.dataset.lang = '';
         state.isAnimating = false;
       }, TIME.MERGE_CLEANUP);
@@ -367,21 +396,24 @@
     });
   }
 
-  function navigateTo(url) {
-    window.location.href = url;
-  }
-
   // -----------------------------
   // Event wiring
   // -----------------------------
 
   if (els.backBtn) {
     els.backBtn.addEventListener('click', () => {
+      // If the popup is open, BACK should only dismiss it (least surprising).
+      if (state.isGamePickOpen) {
+        closeGamePick();
+        return;
+      }
+
       if (els.body.classList.contains('difficulty-mode')) {
         exitDifficulty();
         return;
       }
-      navigateTo('./index.html');
+
+      window.location.href = './index.html';
     });
   }
 
@@ -389,24 +421,38 @@
     btn.addEventListener('click', () => enterDifficulty(btn));
   });
 
-  setSelectedGame(state.selectedGame);
-
-  $$('.game-btn').forEach((btn) => {
+  // Difficulty click opens the game-pick overlay instead of navigating immediately.
+  $$('.diff-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      setSelectedGame(btn.dataset.game || 'bingo');
+      const diff = btn.dataset.diff || 'normal';
+      openGamePick(diff);
     });
   });
 
-
-  $$('.diff-btn').forEach((btn) => {
+  // Game pick buttons: choose the mini-game, then navigate.
+  $$('.pick-game-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const diff = btn.dataset.diff || '';
-      const lang = els.body.dataset.lang || '';
-      const game = state.selectedGame || 'bingo';
-      const page = (game === 'acidrain') ? 'acidrain.html' : 'bingo.html';
-      const next = `./${page}?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
-      navigateTo(next);
+      const game = btn.dataset.game || 'bingo';
+      navigateToMiniGame(game);
     });
+  });
+
+  // Explicit cancel (BACK) button inside the overlay.
+  if (els.gamePickCancel) {
+    els.gamePickCancel.addEventListener('click', () => closeGamePick());
+  }
+
+  // Click-outside to dismiss (safe/expected behavior for a modal).
+  if (els.gamePickOverlay) {
+    els.gamePickOverlay.addEventListener('click', (e) => {
+      if (e.target === els.gamePickOverlay) closeGamePick();
+    });
+  }
+
+  // ESC closes the overlay (desktop ergonomics).
+  window.addEventListener('keydown', (e) => {
+    if (!state.isGamePickOpen) return;
+    if (e.key === 'Escape') closeGamePick();
   });
 
   // Prevent orphaned timers when the page is backgrounded or navigated away.

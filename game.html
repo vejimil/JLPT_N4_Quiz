@@ -50,7 +50,6 @@
       <!-- =====================================================
            Language buttons
            - data-lang stores the language code
-           - Currently shows a toast (“Coming soon”)
            ===================================================== -->
       <div class="langs">
         <button class="lang-btn" data-lang="ja" aria-label="Japanese">
@@ -90,29 +89,40 @@
         </button>
       </div>
 
-      <!-- =====================================================
-           Game selection buttons (shown in Difficulty mode)
-           - Two games for now: Bingo / Acid Rain
-           - Selecting a game changes where the difficulty buttons navigate
-           ===================================================== -->
-      <div class="games" id="games" aria-label="Game selection" aria-hidden="true">
-        <button class="game-btn" data-game="bingo" aria-label="Bingo" aria-pressed="true">
-          <img class="bg-img" src="assets/Button.png" alt="" />
-          <img class="label-img" src="assets/Bingo_Title.png" alt="BINGO" />
-        </button>
-
-        <button class="game-btn" data-game="acidrain" aria-label="Acid Rain" aria-pressed="false">
-          <img class="bg-img" src="assets/Button.png" alt="" />
-          <img class="label-img" src="assets/ACID RAIN.png" alt="ACID RAIN" />
-        </button>
-      </div>
-
       <!-- Toast element controlled by JS -->
       <div class="toast" id="toast">Coming soon</div>
 
     </div>
+
+    <!-- =========================================================
+         Game pick overlay
+         - Opened AFTER the user selects a difficulty.
+         - Keeps your "image-only UI" rule: the two game entries are
+           represented by their title assets.
+         ========================================================= -->
+    <div class="menu-overlay" id="gamePickOverlay" aria-hidden="true">
+      <div class="menu-overlay-inner" role="dialog" aria-modal="true" aria-label="Select a mini-game">
+        <div class="menu-overlay-actions" aria-label="Mini-game choices">
+          <button class="pick-game-btn" data-game="bingo" aria-label="Bingo">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/Bingo_Title.png" alt="BINGO" />
+          </button>
+
+          <button class="pick-game-btn" data-game="acidrain" aria-label="Acid Rain">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/ACID RAIN.png" alt="ACID RAIN" />
+          </button>
+        </div>
+
+        <button class="pick-cancel-btn" id="gamePickCancel" aria-label="Back">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/BACK.png" alt="BACK" />
+        </button>
+      </div>
+    </div>
+
   </div>
+
   <script src="./game.js"></script>
 </body>
 </html>
-

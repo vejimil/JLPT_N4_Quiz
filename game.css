@@ -24,10 +24,6 @@
       --diff-top: 67%;
       --diff-top-wide: 62%;
 
-      /* Game selection (shown in Difficulty mode) */
-      --game-gap: clamp(18px, 2.4vw, 28px);
-      --games-offset: clamp(72px, 10vh, 110px);
-
       /* Title image sizes (default) */
       --title1-w: min(72vw, 640px);
       --title2-w: min(40vw, 360px);
@@ -40,6 +36,10 @@
       /* Back button (default) */
       --back-w: clamp(120px, 16vw, 180px);
       --back-h: clamp(40px, 6.6vh, 58px);
+    
+
+      /* Menu overlay (game pick) */
+      --menu-overlay-gap: clamp(14px, 2.2vw, 28px);
     }
 
     /* =========================================================
@@ -144,8 +144,9 @@
     .pix-btn,
     .lang-btn,
     .diff-btn,
-    .game-btn,
-    .ghost-btn{
+    .ghost-btn,
+    .pick-game-btn,
+    .pick-cancel-btn{
       border: 0;
       padding: 0;
       background: transparent;
@@ -161,14 +162,16 @@
     .pix-btn:active,
     .lang-btn:active,
     .diff-btn:active,
-    .game-btn:active { transform: scale(0.98); }
+    .pick-game-btn:active,
+    .pick-cancel-btn:active { transform: scale(0.98); }
 
     /* Only apply hover zoom where hover exists (desktop mouse) */
     @media (hover:hover) and (pointer:fine){
       .pix-btn:hover,
       .lang-btn:hover,
       .diff-btn:hover,
-      .game-btn:hover { transform: scale(1.05); }
+      .pick-game-btn:hover,
+      .pick-cancel-btn:hover { transform: scale(1.05); }
     }
 
     /* =========================================================
@@ -196,8 +199,9 @@
     .pix-btn .label-img,
     .lang-btn .label-img,
     .diff-btn .label-img,
-    .game-btn .label-img,
-    .ghost-btn .label-img{
+    .ghost-btn .label-img,
+    .pick-game-btn .label-img,
+    .pick-cancel-btn .label-img{
       position: absolute;
       left: 50%;
       top: 50%;
@@ -387,71 +391,7 @@
       pointer-events: auto;
     }
 
-    /* =========================================================
-       10.7) Game selection buttons (Bingo / Acid Rain)
-       - This is a light "multi-game" scaffold.
-       - We keep it hidden until Difficulty mode is active.
-       ========================================================= */
-    .games{
-      position: absolute;
-      left: 50%;
-      top: calc(var(--diff-top) + var(--games-offset));
-      transform: translate(-50%, -50%);
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      gap: var(--game-gap);
-      z-index: 6;
-
-      /* Hidden by default but measurable */
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transition: opacity 180ms ease;
-    }
-
-    /* Wider screens: follow the wide difficulty baseline */
-    @media (min-aspect-ratio: 4/3){
-      .games{
-        top: calc(var(--diff-top-wide) + var(--games-offset));
-      }
-    }
-
-    /* Prep stage: keep it "present" so opacity can fade smoothly */
-    .games.is-prep{ visibility: visible; }
-
-    /* Visible/enabled state (mirrors .diffs.is-ready timing) */
-    body.difficulty-mode .games.is-ready{
-      opacity: 1;
-      visibility: visible;
-      pointer-events: auto;
-    }
-
-    .game-btn{
-      width: var(--btn-w);
-      height: var(--btn-h);
-    }
-
-    .game-btn .bg-img{
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: fill;
-      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
-    }
-
-    /* Title assets (Bingo_Title / ACID RAIN) are wider than simple labels */
-    .game-btn .label-img{
-      height: 44%;
-      max-width: 90%;
-    }
-
-    .game-btn.is-selected .bg-img{
-      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25)) brightness(1.12);
-    }
-    /* =========================================================
+    ==========
        10.6) Ghost button used for the split animation
        ========================================================= */
     .ghost-btn{
@@ -505,7 +445,81 @@
       .langs{ top: 69%; }
     }
 
+    
+
     /* =========================================================
+       12.5) Menu overlay: pick the mini-game AFTER difficulty
+       - This matches Acid Rain's overlay style (source of truth).
+       - Why: lets the user commit difficulty first, then pick a mode.
+       ========================================================= */
+    .menu-overlay{
+      position: absolute;
+      inset: 0;
+      display: none;
+      pointer-events: auto;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(2px);
+      z-index: 60;
+    }
+    .menu-overlay.show{ display: flex; }
+
+    .menu-overlay-inner{
+      width: min(92vw, 920px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--menu-overlay-gap);
+      pointer-events: auto;
+    }
+
+    .menu-overlay-actions{
+      width: min(92vw, 720px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--menu-overlay-gap);
+    }
+
+    /* Wider screens: place game choices side-by-side */
+    @media (min-aspect-ratio: 4/3){
+      .menu-overlay-actions{
+        flex-direction: row;
+      }
+    }
+
+    .pick-game-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
+    }
+    .pick-game-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+    /* Title assets are wider than simple labels */
+    .pick-game-btn .label-img{
+      height: 44%;
+      max-width: 90%;
+    }
+
+    .pick-cancel-btn{
+      width: var(--back-w);
+      height: var(--back-h);
+    }
+    .pick-cancel-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+/* =========================================================
        13) Toast (temporary “Coming soon” notice)
        - Hidden by default
        - .show makes it visible and slightly lifted

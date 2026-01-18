@@ -131,6 +131,139 @@
     el.style.height = rect.height + 'px';
   }
 
+  // -----------------------------
+  // Layout measurement helpers
+  // -----------------------------
+
+  /**
+   * Compare two numbers with a small tolerance.
+   * We need this because fractional pixels + fonts can produce sub-pixel jitter
+   * for 1 frame during class toggles.
+   */
+  const approxEq = (a, b, eps) => Math.abs(a - b) <= eps;
+
+  /** @param {DOMRect} a @param {DOMRect} b @param {number} eps */
+  function rectApproxEq(a, b, eps) {
+    return (
+      approxEq(a.left, b.left, eps) &&
+      approxEq(a.top, b.top, eps) &&
+      approxEq(a.width, b.width, eps) &&
+      approxEq(a.height, b.height, eps)
+    );
+  }
+
+  /**
+   * Snapshot a DOMRect into a plain object so it can't mutate between frames.
+   * @param {DOMRect} r
+   */
+  function snapRect(r) {
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  }
+
+  /**
+   * Some browsers can return transient (1-frame) incorrect rects right after
+   * toggling classes that affect layout/visibility. This helper waits until the
+   * rect(s) are stable for a couple frames (or times out) before proceeding.
+   *
+   * @param {() => DOMRect} getRect
+   * @param {(rect: DOMRect) => void} onStable
+   */
+  function waitForStableRect(getRect, onStable) {
+    const EPS = 0.5;
+    const MAX_FRAMES = 20;
+    const NEED_STABLE_FRAMES = 2;
+
+    let last = null;
+    let stableCount = 0;
+    let frames = 0;
+
+    const tick = () => {
+      frames += 1;
+
+      /** @type {DOMRect|null} */
+      let rect = null;
+      try {
+        const r = getRect();
+        if (r) rect = /** @type {any} */ (snapRect(r));
+      } catch {
+        // If layout can't be read (detached DOM), just finish with last.
+      }
+
+      if (rect && last && rectApproxEq(rect, last, EPS)) {
+        stableCount += 1;
+      } else {
+        stableCount = 0;
+      }
+
+      if (rect) last = rect;
+
+      if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+        // Prefer the most recent rect we successfully captured.
+        onStable(/** @type {any} */ (rect || last || getRect()));
+        return;
+      }
+
+      window.requestAnimationFrame(tick);
+    };
+
+    window.requestAnimationFrame(tick);
+  }
+
+  /**
+   * Stable measurement for multiple buttons.
+   * @param {() => DOMRect[]} getRects
+   * @param {(rects: DOMRect[]|null) => void} onStable
+   */
+  function waitForStableRects(getRects, onStable) {
+    const EPS = 0.5;
+    const MAX_FRAMES = 20;
+    const NEED_STABLE_FRAMES = 2;
+
+    /** @type {{left:number,top:number,width:number,height:number}[]|null} */
+    let last = null;
+    let stableCount = 0;
+    let frames = 0;
+
+    const rectsApproxEq = (a, b) => {
+      if (!a || !b) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        if (!rectApproxEq(a[i], b[i], EPS)) return false;
+      }
+      return true;
+    };
+
+    const tick = () => {
+      frames += 1;
+
+      /** @type {{left:number,top:number,width:number,height:number}[]|null} */
+      let rects = null;
+      try {
+        const rs = getRects();
+        if (Array.isArray(rs)) rects = rs.map((r) => snapRect(r));
+      } catch {
+        // ignore
+      }
+
+      if (rects && last && rectsApproxEq(rects, last)) {
+        stableCount += 1;
+      } else {
+        stableCount = 0;
+      }
+
+      if (rects) last = rects;
+
+      if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+        onStable(/** @type {any} */ (rects || last));
+        return;
+      }
+
+      window.requestAnimationFrame(tick);
+    };
+
+    window.requestAnimationFrame(tick);
+  }
+
   /**
    * Enter Difficulty mode: split a selected language button into 3 ghost buttons
    * that morph into the real difficulty buttons.

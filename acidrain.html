@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>World of Words - Acid Rain</title>
+
+  <style>
+    :root{
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+
+      --ui-pad-x: clamp(10px, 2vw, 20px);
+      --ui-pad-y: clamp(10px, 2vh, 20px);
+
+      --gap: clamp(10px, 2vw, 24px);
+
+      --pause-w: clamp(120px, 18vw, 190px);
+      --pause-h: clamp(40px, 6vw, 62px);
+
+      --title-h: clamp(44px, 6.4vw, 86px);
+      --hp-h: clamp(34px, 5vw, 62px);
+
+      /* Falling block size (JS uses these as “default intentions”) */
+      --drop-w: clamp(160px, 16vw, 240px);
+      --drop-h: clamp(52px, 5.2vw, 80px);
+
+      /* Choice buttons */
+      --choice-gap: clamp(10px, 1.5vw, 16px);
+      --choice-cols: 5; /* JS can override */
+      --choice-ar: 2.4 / 1;
+      --choice-minw: 120px;
+      --choices-maxw: 1200px;
+
+      /* Overlay */
+      --overlay-title-h: clamp(44px, 7vw, 96px);
+      --overlay-btn-w: clamp(140px, 22vw, 220px);
+      --overlay-btn-h: clamp(44px, 7vw, 70px);
+    }
+
+    html, body{
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif;
+    }
+
+    img{
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -ms-interpolation-mode: nearest-neighbor;
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+
+    .stage{
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .bg{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: translateZ(0);
+    }
+
+    .ui{
+      position: absolute;
+      inset: 0;
+      padding:
+        calc(var(--ui-pad-y) + var(--safe-top))
+        calc(var(--ui-pad-x) + var(--safe-right))
+        calc(var(--ui-pad-y) + var(--safe-bottom))
+        calc(var(--ui-pad-x) + var(--safe-left));
+      pointer-events: none;
+
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto; /* topbar / field / choices */
+      row-gap: var(--gap);
+      box-sizing: border-box;
+    }
+
+    .clickable{ pointer-events: auto; }
+
+    /* Shared image-button base (same philosophy as bingo.html) */
+    .ui-btn{
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: grab;
+      position: relative;
+      display: inline-block;
+      transition: transform 120ms ease;
+      touch-action: none;
+      transform: translateZ(0);
+      box-sizing: border-box;
+    }
+    .ui-btn:active{ transform: scale(0.98); }
+    @media (hover:hover) and (pointer:fine){
+      .ui-btn:hover{ transform: scale(1.05); }
+    }
+    .ui-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+    .ui-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: auto;
+      height: 48%;
+      max-width: 82%;
+    }
+
+    /* Top bar */
+    .topbar{
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: start;
+      column-gap: var(--gap);
+      min-width: 0;
+    }
+
+    .pause-btn{
+      width: var(--pause-w);
+      height: var(--pause-h);
+    }
+
+    .title{
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-width: 0;
+    }
+    .title img{
+      height: var(--title-h);
+      width: auto;
+      max-width: 92vw;
+    }
+
+    .hp{
+      display: flex;
+      justify-content: flex-end;
+      gap: clamp(4px, 0.8vw, 10px);
+      padding-top: clamp(2px, 0.3vw, 8px);
+      min-width: 0;
+    }
+    .hp img{
+      height: var(--hp-h);
+      width: auto;
+    }
+
+    /* Play field */
+    .field{
+      position: relative;
+      overflow: hidden; /* must not scroll */
+      min-width: 0;
+      min-height: 0;
+      border-radius: 12px;
+      touch-action: none; /* critical: prevent browser pan during dragging */
+    }
+
+    /* Falling block */
+    .drop{
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--drop-w);
+      height: var(--drop-h);
+      transform: translate3d(0,0,0);
+      will-change: transform;
+      touch-action: none;
+      user-select: none;
+      pointer-events: none; /* choices are dragged; drops are geometric targets */
+      cursor: default;
+    }
+
+    .drop-bg{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+    }
+
+    .drop-text{
+      position: absolute;
+      inset: 10%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+
+      text-align: center;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      color: #0b0b0b;
+
+      /* allow wrap for long vocabulary */
+      overflow: hidden;
+      word-break: break-word;
+      line-height: 1.05;
+    }
+    .drop-text .sub{
+      font-weight: 700;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* Choices */
+    .choices-wrap{
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      min-width: 0;
+    }
+
+    .choices{
+      width: min(100%, var(--choices-maxw));
+      display: grid;
+      grid-template-columns: repeat(var(--choice-cols), minmax(0, 1fr));
+      gap: var(--choice-gap);
+      min-width: 0;
+      padding-bottom: 2px; /* tiny buffer above safe-bottom */
+    }
+
+    .choice-btn{
+      width: 100%;
+      min-width: var(--choice-minw);
+      aspect-ratio: var(--choice-ar);
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: grab;
+      position: relative;
+      transform: translateZ(0);
+      touch-action: none;
+      pointer-events: auto;
+    }
+
+    .choice-btn:active{ cursor: grabbing; }
+
+    /* Drag ghost (the moving copy of a choice button) */
+    .choice-ghost{
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 9999;
+      pointer-events: none !important;
+      will-change: transform;
+      transform: translate3d(0,0,0);
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
+    }
+
+    /* Dim the source button while its ghost is being dragged */
+    .choice-btn.is-drag-source{
+      opacity: 0.45;
+    }
+
+
+    .choice-bg{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+    }
+
+    .choice-text{
+      position: absolute;
+      inset: 10%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+
+      text-align: center;
+      font-weight: 900;
+      letter-spacing: -0.2px;
+      color: #0b0b0b;
+
+      overflow: hidden;
+      word-break: break-word;
+      line-height: 1.05;
+      pointer-events: none; /* drop detection uses rects; text shouldn’t steal events */
+    }
+    .choice-text .sub{
+      font-weight: 800;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* Simple feedback */
+    .choice-btn.flash{
+      animation: flash 160ms ease;
+    }
+    @keyframes flash{
+      from{ transform: scale(1); filter: brightness(1.2); }
+      to{ transform: scale(1); filter: brightness(1); }
+    }
+
+    .drop.wrong{
+      animation: shake 220ms ease;
+    }
+    @keyframes shake{
+      0%{ transform: translate3d(var(--tx), var(--ty), 0) translateX(0); }
+      25%{ transform: translate3d(var(--tx), var(--ty), 0) translateX(-6px); }
+      50%{ transform: translate3d(var(--tx), var(--ty), 0) translateX(6px); }
+      75%{ transform: translate3d(var(--tx), var(--ty), 0) translateX(-4px); }
+      100%{ transform: translate3d(var(--tx), var(--ty), 0) translateX(0); }
+    }
+
+    /* Overlay */
+    .overlay{
+      position: absolute;
+      inset: 0;
+      display: none;
+      pointer-events: auto;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(2px);
+    }
+    .overlay.show{ display: flex; }
+
+    .overlay-inner{
+      width: min(92vw, 920px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(16px, 2.4vw, 28px);
+    }
+
+    .overlay-title-img{
+      height: var(--overlay-title-h);
+      width: auto;
+      max-width: 92vw;
+    }
+
+    .overlay-title-text{
+      display: none;
+      font-weight: 900;
+      font-size: clamp(28px, 5.2vw, 52px);
+      color: #fff;
+      text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+    }
+
+    .overlay-actions{
+      width: min(92vw, 720px);
+      display: flex;
+      justify-content: space-between;
+      gap: clamp(14px, 2.2vw, 28px);
+    }
+
+    .overlay-btn{
+      width: var(--overlay-btn-w);
+      height: var(--overlay-btn-h);
+    }
+
+    /* Safety: prevent dblclick zoom on desktop */
+    @media (pointer:fine){
+      body{ user-select: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <!-- Background: reuse your existing “game desktop background” asset -->
+    <img class="bg" src="assets/world_of_words_game_Background_For_Desktop.png" alt="" />
+
+    <div class="ui">
+      <div class="topbar">
+        <button class="ui-btn pause-btn clickable" id="pauseBtn" aria-label="Pause">
+          <img class="bg-img" src="assets/Button_Pause.png" alt="" />
+          <img class="label-img" src="assets/PAUSE.png" alt="PAUSE" />
+        </button>
+
+        <div class="title" aria-hidden="true">
+          <img src="assets/ACID RAIN.png" alt="ACID RAIN" />
+        </div>
+
+        <div class="hp" id="hp" aria-label="HP"></div>
+      </div>
+
+      <div class="field clickable" id="field" aria-label="Play field"></div>
+
+      <div class="choices-wrap clickable">
+        <div class="choices" id="choices" aria-label="Choices"></div>
+      </div>
+    </div>
+
+    <!-- Overlay (pause / gameover) -->
+    <div class="overlay" id="overlay" aria-hidden="true" data-state="pause">
+      <div class="overlay-inner">
+        <img class="overlay-title-img" id="overlayTitleImg" alt="" />
+        <div class="overlay-title-text" id="overlayTitleText"></div>
+
+        <div class="overlay-actions">
+          <button class="ui-btn overlay-btn" id="resumeBtn" aria-label="Resume">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/RESUME.png" alt="RESUME" />
+          </button>
+
+          <button class="ui-btn overlay-btn" id="backBtn" aria-label="Back">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/BACK.png" alt="BACK" />
+          </button>
+
+          <button class="ui-btn overlay-btn" id="retryBtn" aria-label="Retry">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/RETRY.png" alt="RETRY" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vocab packs (same pattern as bingo) -->
+  <script src="./vocab.js"></script>
+  <script src="./vocab-fr.js"></script>
+  <script src="./vocab-es.js"></script>
+  <script src="./acidrain.js"></script>
+</body>
+</html>

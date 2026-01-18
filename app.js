@@ -418,98 +418,85 @@ function buildQuestionForWord(word, mode) {
 }
 
 // ===== 프랑스어 문제 생성 =====
-function buildQuestionForWordFr(word) {
-  // mode: frToEn or enToFr
-  const mode = Math.random() < 0.5 ? "frToEn" : "enToFr";
+// NOTE:
+// French/Spanish question generation used to be duplicated with near-identical logic.
+// We keep the *exact same behavior* (random mode, strings, distractor source)
+// but route both through a shared implementation to reduce future bug surface.
 
-  let questionText = "";
-  let answerText = "";
-  let poolType = "";
+const LATIN_LANG_QUIZ_CFG = Object.freeze({
+  fr: {
+    // “Mode” names are user-visible elsewhere (e.g. after-answer labels).
+    // Keep them unchanged.
+    modeA: 'frToEn',
+    modeB: 'enToFr',
+    promptA: (w) => `프랑스어 「${w.fr}」의 영어 뜻은?`,
+    promptB: (w) => `영어 「${w.en}」을(를) 프랑스어로 하면?`,
+    answerA: (w) => w.en,
+    answerB: (w) => w.fr,
+    poolA: 'en',
+    poolB: 'fr',
+    // IMPORTANT: distractors come from the full language vocab, not the (possibly smaller) exam pool.
+    // This preserves current difficulty and avoids “all wrong-only choices.”
+    allVocab: () => (typeof VOCAB_FR !== 'undefined' && Array.isArray(VOCAB_FR) ? VOCAB_FR : []),
+  },
+  es: {
+    modeA: 'esToEn',
+    modeB: 'enToEs',
+    promptA: (w) => `스페인어 「${w.es}」의 영어 뜻은?`,
+    promptB: (w) => `영어 「${w.en}」을(를) 스페인어로 하면?`,
+    answerA: (w) => w.en,
+    answerB: (w) => w.es,
+    poolA: 'en',
+    poolB: 'es',
+    allVocab: () => (typeof VOCAB_ES !== 'undefined' && Array.isArray(VOCAB_ES) ? VOCAB_ES : []),
+  },
+});
 
-  if (mode === "frToEn") {
-    questionText = `프랑스어 「${word.fr}」의 영어 뜻은?`;
-    answerText = word.en;
-    poolType = "en";
-  } else {
-    questionText = `영어 「${word.en}」을(를) 프랑스어로 하면?`;
-    answerText = word.fr;
-    poolType = "fr";
+/**
+ * Shared builder for FR/ES quizzes.
+ *
+ * Why this exists:
+ * - The FR/ES flows are identical except for field names and UI strings.
+ * - Centralizing eliminates copy/paste drift while keeping behavior stable.
+ *
+ * @param {any} word
+ * @param {'fr'|'es'} langKey
+ */
+function buildQuestionForWordLatin(word, langKey) {
+  const cfg = LATIN_LANG_QUIZ_CFG[langKey];
+  // Defensive fallback: if config is missing, return a minimal safe question.
+  if (!cfg) {
+    return {
+      wordId: word && word.id,
+      questionText: '',
+      choices: [],
+      choiceWordIds: [],
+      correctIndex: -1,
+      mode: '',
+      answerText: '',
+    };
   }
+
+  // mode: frToEn/enToFr or esToEn/enToEs (50/50)
+  const mode = Math.random() < 0.5 ? cfg.modeA : cfg.modeB;
+
+  const isA = mode === cfg.modeA;
+  const questionText = isA ? cfg.promptA(word) : cfg.promptB(word);
+  const answerText = isA ? cfg.answerA(word) : cfg.answerB(word);
+  const poolType = isA ? cfg.poolA : cfg.poolB;
 
   // --- 오답 후보 ---
-  let others = VOCAB_FR.filter((w) => w.id !== word.id);
-
-  // 보기 4개 뽑기
-  const shuffled = shuffleArray(others).slice(0, 4);
-
-  const choiceItems = shuffled.map((w) => {
-    if (poolType === "en") return { wordId: w.id, text: w.en };
-    if (poolType === "fr") return { wordId: w.id, text: w.fr };
-  });
-
-  // 정답 포함
-  choiceItems.push({
-    wordId: word.id,
-    text: answerText,
-  });
-
-  // 보기 순서 섞기
-  const idxs = shuffleArray([0, 1, 2, 3, 4]);
-  const finalChoices = [];
-  const finalChoiceWordIds = [];
-
-  idxs.forEach((i) => {
-    const item = choiceItems[i];
-    if (!item) return;
-    finalChoices.push(item.text);
-    finalChoiceWordIds.push(item.wordId);
-  });
-
-  const correctIndex = finalChoiceWordIds.indexOf(word.id);
-
-  return {
-    wordId: word.id,
-    questionText,
-    choices: finalChoices,
-    choiceWordIds: finalChoiceWordIds,
-    correctIndex,
-    mode,
-    answerText,
-  };
-}
-
-// ===== 스페인어 문제 생성 =====
-function buildQuestionForWordEs(word) {
-  // mode: esToEn or enToEs (프랑스어와 동일한 구조)
-  const mode = Math.random() < 0.5 ? "esToEn" : "enToEs";
-
-  let questionText = "";
-  let answerText = "";
-  let poolType = "";
-
-  if (mode === "esToEn") {
-    questionText = `스페인어 「${word.es}」의 영어 뜻은?`;
-    answerText = word.en;
-    poolType = "en";
-  } else {
-    questionText = `영어 「${word.en}」을(를) 스페인어로 하면?`;
-    answerText = word.es;
-    poolType = "es";
-  }
-
-  // --- 오답 후보 (전체 스페인어 단어장에서 가져오기) ---
-  let others = [];
-  if (typeof VOCAB_ES !== "undefined" && Array.isArray(VOCAB_ES)) {
-    others = VOCAB_ES.filter((w) => w.id !== word.id);
-  }
+  const all = cfg.allVocab();
+  const others = all.filter((w) => w.id !== word.id);
 
   // 보기 4개 뽑기
   const shuffled = shuffleArray(others).slice(0, 4);
 
   const choiceItems = shuffled
     .map((w) => {
-      if (poolType === "en") return { wordId: w.id, text: w.en };
-      if (poolType === "es") return { wordId: w.id, text: w.es };
+      if (poolType === 'en') return { wordId: w.id, text: w.en };
+      if (poolType === 'fr') return { wordId: w.id, text: w.fr };
+      if (poolType === 'es') return { wordId: w.id, text: w.es };
       return null;
     })
     .filter(Boolean);
@@ -545,8 +532,18 @@ function buildQuestionForWordEs(word) {
   };
 }
 
+function buildQuestionForWordFr(word) {
+  return buildQuestionForWordLatin(word, 'fr');
+}
+
+// ===== 스페인어 문제 생성 =====
+function buildQuestionForWordEs(word) {
+  return buildQuestionForWordLatin(word, 'es');
+}
+
 // 스페인어 전용
 function generateExamQuestionsEs(count, pool) {
+  // Keep signature unchanged; use pool when provided.
   const vocab = pool || VOCAB_ES;
   const shuffled = shuffleArray(vocab);
   const limited = shuffled.slice(0, Math.min(count, shuffled.length));
@@ -556,6 +553,7 @@ function generateExamQuestionsEs(count, pool) {
 
 // 프랑스어 전용
 function generateExamQuestionsFr(count, pool) {
+  // Keep signature unchanged; use pool when provided.
   const vocab = pool || VOCAB_FR;
   const shuffled = shuffleArray(vocab);
   const limited = shuffled.slice(0, Math.min(count, shuffled.length));

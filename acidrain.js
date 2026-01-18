@@ -92,9 +92,9 @@
   // - maxActive prevents unfair clutter (especially on mobile)
   // - choices controls cognitive load
   const DIFF = Object.freeze({
-    easy:   { choices: 5,  spawnEveryMs: 1350, fallSpeedPxSec: 240, maxActive: 3, roundGoal: 10 },
-    normal: { choices: 5, spawnEveryMs: 1100, fallSpeedPxSec: 300, maxActive: 4, roundGoal: 14 },
-    hard:   { choices: 5, spawnEveryMs: 900,  fallSpeedPxSec: 380, maxActive: 5, roundGoal: 16 },
+    easy:   { choices: 5,  spawnEveryMs: 1350, fallSpeedPxSec: 120, maxActive: 3, roundGoal: 10 },
+    normal: { choices: 5, spawnEveryMs: 1100, fallSpeedPxSec: 150, maxActive: 4, roundGoal: 14 },
+    hard:   { choices: 5, spawnEveryMs: 900,  fallSpeedPxSec: 190, maxActive: 5, roundGoal: 16 },
   });
 
   // -----------------------------

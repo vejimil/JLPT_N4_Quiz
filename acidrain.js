@@ -1,18 +1,30 @@
 /*
   Acid Rain (Drag Choices into Falling Blocks)
 
-  Core rules (per your spec):
-  - A falling block shows either the "word side" or the "meaning side"
-  - The bottom choices are the *opposite* side (direction can flip per round)
-  - Interaction: you drag a choice into the falling block (the block is the target)
-  - Missing an item (it reaches the bottom) costs 1 heart
-  - Wrong match does NOT cost a heart (only gives feedback), to keep the game fair on touch devices
-  - Pause / Game Over overlays reuse the same asset philosophy as Bingo
+  Core rules:
+  - A falling block shows either the "word side" or the "meaning side".
+  - The bottom choices are the *opposite* side (direction can flip per round).
+  - Interaction: drag a choice into a falling block (the block is the target).
+  - Missing an item (it reaches the bottom) costs 1 heart.
+  - Wrong match does NOT cost a heart (feedback only).
+
+  Updates requested (2026-01-18):
+  1) Falling speed felt too fast.
+     - We now tune falling by *time-to-bottom* (seconds), not fixed px/sec.
+     - Result: on wide (landscape) vs tall (portrait) screens, the time until a block
+       hits the bottom stays consistent.
+
+  2) Round logic felt repetitive.
+     - Round clear goal is 10 matches (example value).
+     - Each round has 10 unique word-meaning pairs.
+     - Only 5 choices are shown at a time.
+     - When you match correctly, the choice slot you used is replaced by a new pair,
+       so you can eventually clear all 10 without seeing the same item spammed.
 
   Code-health goals:
-  - Round generation is pure (easy to test/review)
-  - DOM/animation is isolated to rendering + a single RAF loop
-  - Defensive defaults for short vocab lists
+  - Keep round generation pure and easy to reason about.
+  - Keep DOM rendering + RAF loop isolated from game rules.
+  - Defensive defaults so short vocab lists never break the UI.
 */
 
 (() => {
@@ -25,7 +37,9 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+  function clamp(n, min, max){
+    return Math.max(min, Math.min(max, n));
+  }
 
   function shuffle(arr){
     for (let i = arr.length - 1; i > 0; i--) {
@@ -75,11 +89,10 @@
     hpRed: 'assets/HP_Red.png',
     hpBlack: 'assets/HP_Black.png',
 
-    // Choice button background (reusing existing style).
-    // If your project uses a different asset for “choice blocks”, change it here only.
+    // Choice button background (reusing existing style)
     choiceBg: 'assets/Bingo_Button_Answer.png',
 
-    // Overlay title assets (same naming rules as Bingo)
+    // Overlay title assets
     overlayTitlePause: 'assets/PAUSE.png',
     overlayTitleGameOver: 'assets/GAME OVER.png',
   });
@@ -87,19 +100,18 @@
   // -----------------------------
   // Difficulty tuning
   // -----------------------------
-  // Why these knobs:
-  // - spawnEveryMs + fallSpeedPxSec control “pressure”
-  // - maxActive prevents unfair clutter (especially on mobile)
-  // - choices controls cognitive load
+  // Key change: "fallTimeSec" (time until a block hits the bottom)
+  // This keeps gameplay consistent across different aspect ratios.
   const DIFF = Object.freeze({
-    easy:   { choices: 5,  spawnEveryMs: 1350, fallSpeedPxSec: 80, maxActive: 3, roundGoal: 10 },
-    normal: { choices: 5, spawnEveryMs: 1100, fallSpeedPxSec: 100, maxActive: 4, roundGoal: 14 },
-    hard:   { choices: 5, spawnEveryMs: 900,  fallSpeedPxSec: 120, maxActive: 5, roundGoal: 16 },
+    easy:   { choices: 5, spawnEveryMs: 1500, fallTimeSec: 11, maxActive: 3, roundGoal: 10 },
+    normal: { choices: 5, spawnEveryMs: 1300, fallTimeSec: 10, maxActive: 4, roundGoal: 10 },
+    hard:   { choices: 5, spawnEveryMs: 1100, fallTimeSec: 9,  maxActive: 5, roundGoal: 10 },
   });
 
   // -----------------------------
   // Vocabulary adapter (matches Bingo’s data model)
   // -----------------------------
+
   function getPairs(lang){
     if (lang === 'fr') {
       const SRC = (typeof VOCAB_FR !== 'undefined') ? VOCAB_FR : (globalThis.VOCAB_FR || []);
@@ -111,13 +123,21 @@
       const pool = (SRC || []).filter(v => v && v.es && v.en);
       return pool.map(v => ({ id: v.id, q1: String(v.es), q2: '', a: String(v.en) }));
     }
+
+    // Default: Japanese (kanji/kana -> Korean meaning)
     const SRC = (typeof VOCAB !== 'undefined') ? VOCAB : (globalThis.VOCAB || []);
     const pool = (SRC || []).filter(v => v && v.jpKana && v.krMeaning);
+
     return pool.map(v => {
       const kanji = (v.jpKanji || '').trim();
       const kana = (v.jpKana || '').trim();
       const useKanji = kanji && kanji !== '-' && kanji !== '—' && kanji !== '(한자 없음)';
-      return { id: v.id, q1: useKanji ? kanji : kana, q2: useKanji ? kana : '', a: String(v.krMeaning) };
+      return {
+        id: v.id,
+        q1: useKanji ? kanji : kana,
+        q2: useKanji ? kana : '',
+        a: String(v.krMeaning),
+      };
     });
   }
 
@@ -125,37 +145,59 @@
   // Pure round generation
   // -----------------------------
 
-  /**
-   * Round = a fixed set of N pairs + a direction (word->meaning OR meaning->word).
-   *
-   * Why: Keeping the “what should appear” logic pure makes it easy to maintain
-   * when you later add a meta “game manager” that rotates mini-games.
-   */
-  function buildRound(allPairs, choiceCount){
-    const minNeeded = Math.max(12, choiceCount); // small guard to avoid too small pools
-    let pairs = (allPairs || []).slice();
-
-    // Defensive: If vocab is too short, add dummy entries so the UI never breaks.
-    if (pairs.length < minNeeded) {
-      const need = minNeeded - pairs.length;
-      for (let i = 0; i < need; i++) {
-        pairs.push({ id: `dummy-${Date.now()}-${i}`, q1: `WORD ${i + 1}`, q2: '', a: `MEANING ${i + 1}` });
-      }
-    }
-
-    const chosen = pickUnique(pairs, choiceCount);
-
-    // Direction flips per round (your design decision).
-    const fallSide = (Math.random() < 0.5) ? 'word' : 'meaning';
-    const choiceSide = (fallSide === 'word') ? 'meaning' : 'word';
-
-    return { chosen, fallSide, choiceSide };
-  }
-
   function toTextParts(pair, side){
     // side: 'word' | 'meaning'
     if (side === 'meaning') return { main: pair.a || '', sub: '' };
     return { main: pair.q1 || '', sub: pair.q2 || '' };
+  }
+
+  function ensurePoolSize(pairs, needed){
+    const out = (pairs || []).slice();
+    if (out.length >= needed) return out;
+
+    // Defensive: Add dummy entries so the UI never breaks.
+    // IDs are unique-ish for this session, and won't collide with numeric ids.
+    const need = needed - out.length;
+    const seed = Date.now();
+
+    for (let i = 0; i < need; i++) {
+      out.push({ id: `dummy-${seed}-${i}`, q1: `WORD ${i + 1}`, q2: '', a: `MEANING ${i + 1}` });
+    }
+    return out;
+  }
+
+  /**
+   * Round spec (requested):
+   * - pool: roundGoal unique pairs
+   * - active: first `choiceCount` pairs shown as choices
+   * - stash: the remaining pairs that will be swapped in after correct matches
+   * - direction flips per round
+   */
+  function buildRound(allPairs, roundGoal, choiceCount){
+    const safeGoal = Math.max(1, Math.floor(roundGoal || 10));
+    const safeChoices = Math.max(1, Math.floor(choiceCount || 5));
+
+    const pairs = ensurePoolSize(allPairs, safeGoal);
+    const pool = pickUnique(pairs, safeGoal);
+
+    const fallSide = (Math.random() < 0.5) ? 'word' : 'meaning';
+    const choiceSide = (fallSide === 'word') ? 'meaning' : 'word';
+
+    const active = pool.slice(0, Math.min(safeChoices, pool.length));
+    const stash = pool.slice(active.length);
+
+    const byId = new Map();
+    for (const p of pool) byId.set(String(p.id), p);
+
+    return {
+      pool,
+      byId,
+      active,
+      stash,
+      fallSide,
+      choiceSide,
+      lastSpawnId: null,
+    };
   }
 
   // -----------------------------
@@ -175,7 +217,7 @@
   const retryBtn = $('#retryBtn');
 
   if (!elField || !elChoices || !elHp || !pauseBtn || !overlay || !overlayTitleImg || !resumeBtn || !backBtn || !retryBtn) {
-    // If HTML changes, we fail safely instead of throwing in production.
+    // If HTML changes, fail safely instead of throwing.
     return;
   }
 
@@ -193,8 +235,8 @@
   let done = false;
   let hearts = 3;
 
-  // “Round” state
-  let round = null;           // { chosen, fallSide, choiceSide }
+  // Round state
+  let round = null;
   let roundHits = 0;
 
   // Layout cache (recomputed on resize)
@@ -202,7 +244,12 @@
 
   // Falling items
   let nextDropId = 1;
-  const drops = new Map();    // id -> { id, pair, el, x, y, w, h, vy }
+  const drops = new Map();
+  // id -> { id, pair, el, x, y, w, h, vy }
+
+  // Choice dragging state
+  let activeDrag = null;
+  // { pointerId, pairId, sourceBtn, ghostEl, offX, offY }
 
   // RAF loop
   let raf = 0;
@@ -233,7 +280,7 @@
     // state: 'pause' | 'gameover'
     overlay.dataset.state = state;
 
-    // Title image (text fallback kept for future states)
+    // Title image (text fallback kept for future)
     overlayTitleText.style.display = 'none';
     overlayTitleImg.style.display = '';
 
@@ -255,7 +302,10 @@
   }
 
   function openOverlay(state){
+    // Important: if the player is dragging a choice when pause/game over opens,
+    // we must clean it up, otherwise a ghost element can remain on screen.
     cancelActiveDrag();
+
     setOverlayState(state);
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
@@ -275,7 +325,6 @@
   function gameOver(){
     if (done) return;
     done = true;
-    cancelActiveDrag();
     openOverlay('gameover');
   }
 
@@ -285,10 +334,12 @@
 
   function fitText(el, minPx){
     if (!el) return;
-    el.style.fontSize = ''; // start from CSS default
+
+    // Reset to CSS default.
+    el.style.fontSize = '';
     let fs = parseFloat(getComputedStyle(el).fontSize) || 16;
 
-    // Reduce font size until it fits. Hard cap iterations to stay fast on mobile.
+    // Reduce until it fits (cap iterations for mobile performance).
     for (let i = 0; i < 14; i++) {
       if (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight) break;
       fs = Math.max(minPx, fs - 1);
@@ -312,7 +363,6 @@
       container.appendChild(sub);
     }
 
-    // Fit after DOM paints sizes.
     requestAnimationFrame(() => fitText(container, 11));
   }
 
@@ -323,11 +373,10 @@
   function computeChoiceCols(){
     const w = window.innerWidth;
 
-    // Why: fixed “one perfect layout” breaks on small widths.
-    // We choose columns to keep buttons tappable and prevent overflow.
+    // Keep buttons tappable and prevent overflow.
     if (w < 520) return Math.min(cfg.choices, 3);
     if (w < 900) return Math.min(cfg.choices, 5);
-    return cfg.choices; // desktop: single row when possible
+    return cfg.choices; // desktop
   }
 
   function recacheRects(){
@@ -341,12 +390,13 @@
       root.style.setProperty('--choice-cols', String(computeChoiceCols()));
       recacheRects();
 
-      // Re-fit all texts after relayout
+      // Re-fit choice texts after relayout.
       $$('.choice-text', elChoices).forEach(t => fitText(t, 11));
-      drops.forEach(d => {
-        const t = d.el.querySelector('.drop-text');
-        if (t) fitText(t, 11);
-      });
+
+      // If the field height changes, adjust existing drops' speed so the
+      // "time-to-bottom" remains roughly consistent after the resize.
+      const vy = computeFallSpeedPxSec();
+      drops.forEach(d => { d.vy = vy; });
     });
   }
 
@@ -354,44 +404,46 @@
   // Round rendering
   // -----------------------------
 
-  function renderChoices(){
+  function clearChoices(){
     elChoices.innerHTML = '';
+  }
 
-    // Update CSS choice columns before we insert (reduces reflow surprises)
+  function renderChoiceButton(pair){
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.type = 'button';
+    btn.dataset.pairId = String(pair.id);
+
+    btn.innerHTML = `
+      <img class="choice-bg" src="${ASSET.choiceBg}" alt="" />
+      <div class="choice-text" aria-hidden="true"></div>
+    `;
+
+    const textEl = btn.querySelector('.choice-text');
+    renderTextBlock(textEl, toTextParts(pair, round.choiceSide));
+
+    // Pointer-based dragging.
+    btn.addEventListener('pointerdown', (e) => onChoicePointerDown(e, btn), { passive: false });
+
+    return btn;
+  }
+
+  function renderChoices(){
+    clearChoices();
     root.style.setProperty('--choice-cols', String(computeChoiceCols()));
 
-    for (const pair of round.chosen) {
-      const btn = document.createElement('button');
-      btn.className = 'choice-btn';
-      btn.type = 'button';
-      btn.dataset.pairId = String(pair.id);
-
-      btn.innerHTML = `
-        <img class="choice-bg" src="${ASSET.choiceBg}" alt="" />
-        <div class="choice-text" aria-hidden="true"></div>
-      `;
-
-      const textEl = btn.querySelector('.choice-text');
-      renderTextBlock(textEl, toTextParts(pair, round.choiceSide));
-
-      elChoices.appendChild(btn);
-
-      // New interaction: drag *choices* into the falling block.
-      btn.addEventListener('pointerdown', onChoicePointerDown, { passive: false });
+    for (const pair of round.active) {
+      elChoices.appendChild(renderChoiceButton(pair));
     }
-
-    // Rect cache must happen after DOM insertion.
-    requestAnimationFrame(recacheRects);
   }
 
   function startNewRound(){
-    cancelActiveDrag();
     roundHits = 0;
 
     const pairs = getPairs(lang);
-    round = buildRound(pairs, cfg.choices);
+    round = buildRound(pairs, cfg.roundGoal, cfg.choices);
 
-    // Clear active drops to avoid “unfair leftovers” when direction flips.
+    // Clear active drops to avoid unfair leftovers when direction flips.
     drops.forEach(d => d.el.remove());
     drops.clear();
 
@@ -403,6 +455,13 @@
   // Falling drops
   // -----------------------------
 
+  function computeFallSpeedPxSec(){
+    // Goal: "it should take fallTimeSec seconds to hit the bottom"
+    if (!fieldRect || !fieldRect.height) return 80;
+    const t = Math.max(1, cfg.fallTimeSec || 10);
+    return fieldRect.height / t;
+  }
+
   function makeDropEl(){
     const el = document.createElement('div');
     el.className = 'drop';
@@ -411,45 +470,6 @@
       <div class="drop-text" aria-hidden="true"></div>
     `;
     return el;
-  }
-
-  function spawnDrop(){
-    if (paused || done) return;
-    if (!round || !fieldRect) return;
-    if (drops.size >= cfg.maxActive) return;
-
-    const pair = round.chosen[Math.floor(Math.random() * round.chosen.length)];
-    const el = makeDropEl();
-    const textEl = el.querySelector('.drop-text');
-    renderTextBlock(textEl, toTextParts(pair, round.fallSide));
-
-    elField.appendChild(el);
-
-    // Measure after insertion (needed for correct bounds).
-    const w = el.offsetWidth || 180;
-    const h = el.offsetHeight || 60;
-
-    const margin = 6;
-    const maxX = Math.max(margin, (fieldRect.width - w - margin));
-    const x = clamp(margin + Math.random() * (fieldRect.width - w - margin * 2), margin, maxX);
-    const y = -h - (Math.random() * 40);
-
-    const id = String(nextDropId++);
-    el.dataset.dropId = id;
-
-    const drop = {
-      id,
-      pair,
-      el,
-      x,
-      y,
-      w,
-      h,
-      vy: cfg.fallSpeedPxSec,
-    };
-
-    drops.set(id, drop);
-    applyDropTransform(drop);
   }
 
   function applyDropTransform(drop){
@@ -464,33 +484,200 @@
     drop.el.remove();
   }
 
+  function removeAllDropsForPair(pairId){
+    const want = String(pairId);
+    drops.forEach(d => {
+      if (String(d.pair.id) === want) removeDrop(d);
+    });
+  }
+
+  function getEnabledChoiceButtons(){
+    return $$('.choice-btn', elChoices).filter(btn => !btn.disabled);
+  }
+
+  function pickSpawnPairId(){
+    if (!round || !fieldRect) return null;
+
+    const activeDropPairIds = new Set(Array.from(drops.values()).map(d => String(d.pair.id)));
+    const candidates = getEnabledChoiceButtons()
+      .map(b => String(b.dataset.pairId || ''))
+      .filter(id => id && !activeDropPairIds.has(id));
+
+    if (!candidates.length) return null;
+
+    // Anti-repeat: avoid spawning the same pair twice in a row when possible.
+    if (candidates.length >= 2 && round.lastSpawnId && candidates.includes(round.lastSpawnId)) {
+      const filtered = candidates.filter(id => id !== round.lastSpawnId);
+      if (filtered.length) {
+        const id = filtered[Math.floor(Math.random() * filtered.length)];
+        round.lastSpawnId = id;
+        return id;
+      }
+    }
+
+    const id = candidates[Math.floor(Math.random() * candidates.length)];
+    round.lastSpawnId = id;
+    return id;
+  }
+
+  function spawnDrop(){
+    if (paused || done) return;
+    if (!round || !fieldRect) return;
+    if (drops.size >= cfg.maxActive) return;
+
+    const pairId = pickSpawnPairId();
+    if (!pairId) return;
+
+    const pair = round.byId.get(String(pairId));
+    if (!pair) return;
+
+    const el = makeDropEl();
+    const textEl = el.querySelector('.drop-text');
+    renderTextBlock(textEl, toTextParts(pair, round.fallSide));
+
+    elField.appendChild(el);
+
+    // Measure after insertion.
+    const w = el.offsetWidth || 180;
+    const h = el.offsetHeight || 60;
+
+    const margin = 6;
+    const maxX = Math.max(margin, (fieldRect.width - w - margin));
+    const x = clamp(margin + Math.random() * (fieldRect.width - w - margin * 2), margin, maxX);
+
+    // Spawn just above the visible field.
+    // Using -h ensures the travel distance until the bottom edge hits is ~fieldRect.height,
+    // which makes time-to-bottom consistent across block sizes.
+    const y = -h;
+
+    const id = String(nextDropId++);
+    el.dataset.dropId = id;
+
+    const drop = {
+      id,
+      pair,
+      el,
+      x,
+      y,
+      w,
+      h,
+      vy: computeFallSpeedPxSec(),
+    };
+
+    drops.set(id, drop);
+    applyDropTransform(drop);
+  }
+
   // -----------------------------
-  // Choice -> drop detection (generous snapping)
+  // Choice dragging (choice -> drop)
   // -----------------------------
+
+  function createChoiceGhost(btn, startX, startY){
+    const rect = btn.getBoundingClientRect();
+    const ghost = btn.cloneNode(true);
+
+    // Inline styles so we don't depend on extra CSS.
+    ghost.style.position = 'fixed';
+    ghost.style.left = '0px';
+    ghost.style.top = '0px';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    ghost.style.margin = '0';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.zIndex = '9999';
+    ghost.style.opacity = '0.95';
+    ghost.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+
+    document.body.appendChild(ghost);
+
+    // Offset keeps the pointer attached at the grab point.
+    const offX = startX - rect.left;
+    const offY = startY - rect.top;
+
+    return { ghost, offX, offY };
+  }
+
+  function cancelActiveDrag(){
+    if (!activeDrag) return;
+
+    try {
+      activeDrag.sourceBtn.style.opacity = '';
+      activeDrag.sourceBtn.style.filter = '';
+    } catch (_) {}
+
+    if (activeDrag.ghostEl) activeDrag.ghostEl.remove();
+    activeDrag = null;
+  }
+
+  function onChoicePointerDown(e, btn){
+    if (paused || done) return;
+    if (activeDrag) return; // one drag at a time
+
+    const pairId = String(btn.dataset.pairId || '');
+    if (!pairId) return;
+
+    // Visual feedback on the source while dragging.
+    btn.style.opacity = '0.55';
+    btn.style.filter = 'brightness(1.1)';
+
+    const { ghost, offX, offY } = createChoiceGhost(btn, e.clientX, e.clientY);
+
+    activeDrag = {
+      pointerId: e.pointerId,
+      pairId,
+      sourceBtn: btn,
+      ghostEl: ghost,
+      offX,
+      offY,
+    };
+
+    // Ensure we keep getting events even if the pointer leaves the button.
+    btn.setPointerCapture(e.pointerId);
+
+    // Prevent browser gestures during drag (especially on mobile).
+    e.preventDefault();
+  }
+
+  function moveActiveDrag(e){
+    if (!activeDrag) return;
+    if (activeDrag.pointerId !== e.pointerId) return;
+
+    const x = e.clientX - activeDrag.offX;
+    const y = e.clientY - activeDrag.offY;
+    activeDrag.ghostEl.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+
+    // Prevent scroll on touch.
+    e.preventDefault();
+  }
+
+  function flashChoice(btn){
+    if (!btn) return;
+    btn.classList.remove('flash');
+    // Force reflow to restart animation deterministically.
+    void btn.offsetWidth;
+    btn.classList.add('flash');
+  }
 
   function findClosestDropForPoint(clientX, clientY){
-    if (!fieldRect) return null;
-
+    // Compare distance to the center of each drop in viewport coords.
     let best = null;
     let bestDist = Infinity;
 
     drops.forEach(drop => {
-      // Drop rect in viewport coordinates.
-      const l = fieldRect.left + drop.x;
-      const t = fieldRect.top + drop.y;
-      const r = l + drop.w;
-      const b = t + drop.h;
-
-      const cx = (l + r) / 2;
-      const cy = (t + b) / 2;
+      const rect = drop.el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
 
       const dx = clientX - cx;
       const dy = clientY - cy;
       const dist = Math.hypot(dx, dy);
 
-      // Accept either a direct overlap or a radius hit (touch-friendly).
-      const overlaps = clientX >= l && clientX <= r && clientY >= t && clientY <= b;
-      const radius = Math.max(drop.w, drop.h) * 0.65;
+      // Threshold: either overlap or within a generous radius.
+      const overlaps =
+        clientX >= rect.left && clientX <= rect.right &&
+        clientY >= rect.top && clientY <= rect.bottom;
+
+      const radius = Math.max(rect.width, rect.height) * 0.6;
 
       if (overlaps || dist <= radius) {
         if (dist < bestDist) {
@@ -503,150 +690,71 @@
     return best;
   }
 
-  function flashChoice(btn){
-    if (!btn) return;
-    btn.classList.remove('flash');
-    // Force reflow to restart animation deterministically
-    void btn.offsetWidth;
-    btn.classList.add('flash');
-  }
+  function advanceChoiceSlot(sourceBtn){
+    // Replace the matched slot with a new pair from the stash.
+    const next = round.stash.shift();
 
-  // -----------------------------
-  // Drag interactions (Choice -> Drop)
-  // -----------------------------
-
-  // Single active drag at a time (keeps mobile behavior predictable).
-  let activeDrag = null;
-
-  function cancelActiveDrag(){
-    if (!activeDrag) return;
-
-    try {
-      activeDrag.sourceBtn.classList.remove('is-drag-source');
-    } catch {}
-
-    if (activeDrag.ghost && activeDrag.ghost.parentNode) {
-      activeDrag.ghost.parentNode.removeChild(activeDrag.ghost);
+    if (!next) {
+      // No more new pairs: hide this slot.
+      sourceBtn.disabled = true;
+      sourceBtn.style.visibility = 'hidden';
+      return;
     }
 
-    activeDrag = null;
-  }
+    sourceBtn.dataset.pairId = String(next.id);
+    const textEl = sourceBtn.querySelector('.choice-text');
+    if (textEl) renderTextBlock(textEl, toTextParts(next, round.choiceSide));
 
-  function createChoiceGhost(sourceBtn){
-    const rect = sourceBtn.getBoundingClientRect();
-    const ghost = sourceBtn.cloneNode(true);
+    // The available spawn pool changed, so don't force an immediate repeat.
+    round.lastSpawnId = null;
 
-    ghost.classList.add('choice-ghost');
-    ghost.classList.remove('flash');
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.tabIndex = -1;
-
-    // Lock the ghost size so it doesn't reflow when moved around the page.
-    ghost.style.width = rect.width + 'px';
-    ghost.style.height = rect.height + 'px';
-
-    document.body.appendChild(ghost);
-
-    // Position at the source button initially.
-    ghost.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
-
-    return { ghost, rect };
-  }
-
-  function onChoicePointerDown(e){
-    if (paused || done) return;
-    if (!round) return;
-    if (activeDrag) return;
-
-    const sourceBtn = e.currentTarget;
-    const pairId = sourceBtn?.dataset?.pairId || '';
-    if (!pairId) return;
-
-    const { ghost, rect } = createChoiceGhost(sourceBtn);
-
-    // Offset: keep the finger attached at the grab point.
-    const offX = e.clientX - rect.left;
-    const offY = e.clientY - rect.top;
-
-    activeDrag = {
-      pointerId: e.pointerId,
-      pairId,
-      sourceBtn,
-      ghost,
-      offX,
-      offY,
-      x: rect.left,
-      y: rect.top,
-    };
-
-    sourceBtn.classList.add('is-drag-source');
-    sourceBtn.setPointerCapture(e.pointerId);
-
-    // Prevent browser gestures (especially iOS) while dragging upward.
-    e.preventDefault();
-  }
-
-  function moveActiveDrag(e){
-    if (!activeDrag) return;
-    if (activeDrag.pointerId !== e.pointerId) return;
-
-    const x = e.clientX - activeDrag.offX;
-    const y = e.clientY - activeDrag.offY;
-
-    activeDrag.x = x;
-    activeDrag.y = y;
-    activeDrag.ghost.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-
-    // Prevent accidental scrolling on touch browsers.
-    e.preventDefault();
+    // Re-fit after the new text paints.
+    requestAnimationFrame(() => {
+      if (textEl) fitText(textEl, 11);
+    });
   }
 
   function endActiveDrag(e){
     if (!activeDrag) return;
     if (activeDrag.pointerId !== e.pointerId) return;
 
-    // Keep a local ref because we null out activeDrag during cleanup.
     const drag = activeDrag;
     activeDrag = null;
 
-    // Evaluate: did we drop close enough to a falling block?
-    recacheRects();
-    const targetDrop = findClosestDropForPoint(e.clientX, e.clientY);
+    // Restore source visuals.
+    drag.sourceBtn.style.opacity = '';
+    drag.sourceBtn.style.filter = '';
 
-    if (targetDrop) {
-      const isCorrect = (String(drag.pairId) === String(targetDrop.pair.id));
+    // Determine target (closest drop near the pointer release).
+    const target = findClosestDropForPoint(e.clientX, e.clientY);
 
-      // Feedback: the source button flashes so the player knows *which* option they used.
+    if (target) {
       flashChoice(drag.sourceBtn);
 
+      const isCorrect = (String(target.pair.id) === String(drag.pairId));
+
       if (isCorrect) {
-        removeDrop(targetDrop);
+        // Correct: remove target drop(s), progress the round, and refresh this choice slot.
+        removeAllDropsForPair(drag.pairId);
         roundHits += 1;
+
+        advanceChoiceSlot(drag.sourceBtn);
 
         if (roundHits >= cfg.roundGoal) {
           startNewRound();
         }
       } else {
-        targetDrop.el.classList.remove('wrong');
-        void targetDrop.el.offsetWidth;
-        targetDrop.el.classList.add('wrong');
+        // Wrong: feedback only.
+        target.el.classList.remove('wrong');
+        void target.el.offsetWidth;
+        target.el.classList.add('wrong');
       }
     }
 
-    // Cleanup ghost + source styling.
-    drag.sourceBtn.classList.remove('is-drag-source');
-    if (drag.ghost && drag.ghost.parentNode) drag.ghost.parentNode.removeChild(drag.ghost);
+    if (drag.ghostEl) drag.ghostEl.remove();
 
-    // Prevent a stray click after drag release on some browsers.
+    // Prevent click-after-drag on some browsers.
     e.preventDefault();
-  }
-
-  function onGlobalPointerMove(e){
-    moveActiveDrag(e);
-  }
-
-  function onGlobalPointerUp(e){
-    endActiveDrag(e);
   }
 
   // -----------------------------
@@ -718,12 +826,12 @@
       window.location.href = url.toString();
     });
 
-    // Drag move/up are global to handle cases where the pointer leaves the element.
-    window.addEventListener('pointermove', onGlobalPointerMove, { passive: false });
-    window.addEventListener('pointerup', onGlobalPointerUp, { passive: false });
-    window.addEventListener('pointercancel', onGlobalPointerUp, { passive: false });
+    // Drag move/up are global: pointer may leave the button while dragging.
+    window.addEventListener('pointermove', (e) => moveActiveDrag(e), { passive: false });
+    window.addEventListener('pointerup', (e) => endActiveDrag(e), { passive: false });
+    window.addEventListener('pointercancel', () => cancelActiveDrag(), { passive: true });
 
-    // Auto-pause when the tab is hidden (prevents “unfair” heart loss offscreen).
+    // Auto-pause when the tab is hidden (prevents unfair heart loss offscreen).
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && !done) {
         paused = true;
@@ -739,12 +847,13 @@
   }
 
   function reset(){
-    cancelActiveDrag();
     paused = false;
     done = false;
     hearts = 3;
     renderHearts();
     closeOverlay();
+
+    cancelActiveDrag();
 
     // Reset timing so resume is stable.
     lastTs = 0;
@@ -758,7 +867,7 @@
     bind();
     reset();
 
-    // Initial rect cache after layout settles
+    // Initial rect cache after layout settles.
     setTimeout(() => scheduleRecache(), 120);
 
     cancelAnimationFrame(raf);

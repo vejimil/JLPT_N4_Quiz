@@ -24,6 +24,10 @@
       --diff-top: 67%;
       --diff-top-wide: 62%;
 
+      /* Game selection (shown in Difficulty mode) */
+      --game-gap: clamp(18px, 2.4vw, 28px);
+      --games-offset: clamp(72px, 10vh, 110px);
+
       /* Title image sizes (default) */
       --title1-w: min(72vw, 640px);
       --title2-w: min(40vw, 360px);
@@ -140,6 +144,7 @@
     .pix-btn,
     .lang-btn,
     .diff-btn,
+    .game-btn,
     .ghost-btn{
       border: 0;
       padding: 0;
@@ -155,13 +160,15 @@
     /* Press-down effect (also works on mobile taps) */
     .pix-btn:active,
     .lang-btn:active,
-    .diff-btn:active { transform: scale(0.98); }
+    .diff-btn:active,
+    .game-btn:active { transform: scale(0.98); }
 
     /* Only apply hover zoom where hover exists (desktop mouse) */
     @media (hover:hover) and (pointer:fine){
       .pix-btn:hover,
       .lang-btn:hover,
-      .diff-btn:hover { transform: scale(1.05); }
+      .diff-btn:hover,
+      .game-btn:hover { transform: scale(1.05); }
     }
 
     /* =========================================================
@@ -189,6 +196,7 @@
     .pix-btn .label-img,
     .lang-btn .label-img,
     .diff-btn .label-img,
+    .game-btn .label-img,
     .ghost-btn .label-img{
       position: absolute;
       left: 50%;
@@ -379,6 +387,70 @@
       pointer-events: auto;
     }
 
+    /* =========================================================
+       10.7) Game selection buttons (Bingo / Acid Rain)
+       - This is a light "multi-game" scaffold.
+       - We keep it hidden until Difficulty mode is active.
+       ========================================================= */
+    .games{
+      position: absolute;
+      left: 50%;
+      top: calc(var(--diff-top) + var(--games-offset));
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: var(--game-gap);
+      z-index: 6;
+
+      /* Hidden by default but measurable */
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    /* Wider screens: follow the wide difficulty baseline */
+    @media (min-aspect-ratio: 4/3){
+      .games{
+        top: calc(var(--diff-top-wide) + var(--games-offset));
+      }
+    }
+
+    /* Prep stage: keep it "present" so opacity can fade smoothly */
+    .games.is-prep{ visibility: visible; }
+
+    /* Visible/enabled state (mirrors .diffs.is-ready timing) */
+    body.difficulty-mode .games.is-ready{
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .game-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
+    }
+
+    .game-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
+    }
+
+    /* Title assets (Bingo_Title / ACID RAIN) are wider than simple labels */
+    .game-btn .label-img{
+      height: 44%;
+      max-width: 90%;
+    }
+
+    .game-btn.is-selected .bg-img{
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25)) brightness(1.12);
+    }
     /* =========================================================
        10.6) Ghost button used for the split animation
        ========================================================= */

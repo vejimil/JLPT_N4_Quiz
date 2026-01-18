@@ -90,6 +90,23 @@
         </button>
       </div>
 
+      <!-- =====================================================
+           Game selection buttons (shown in Difficulty mode)
+           - Two games for now: Bingo / Acid Rain
+           - Selecting a game changes where the difficulty buttons navigate
+           ===================================================== -->
+      <div class="games" id="games" aria-label="Game selection" aria-hidden="true">
+        <button class="game-btn" data-game="bingo" aria-label="Bingo" aria-pressed="true">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/Bingo_Title.png" alt="BINGO" />
+        </button>
+
+        <button class="game-btn" data-game="acidrain" aria-label="Acid Rain" aria-pressed="false">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/ACID RAIN.png" alt="ACID RAIN" />
+        </button>
+      </div>
+
       <!-- Toast element controlled by JS -->
       <div class="toast" id="toast">Coming soon</div>
 

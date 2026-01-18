@@ -62,6 +62,7 @@
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
+    games: $id('games'),
   };
 
   // -----------------------------
@@ -71,6 +72,9 @@
   const state = {
     toastTimer: null,
     isAnimating: false,
+    // Which mini-game the difficulty buttons should launch.
+    // Default stays Bingo so existing behavior remains the same unless the user changes it.
+    selectedGame: 'bingo',
   };
 
   function clearToastTimer() {
@@ -92,6 +96,31 @@
       // Guard: the element may disappear on navigation.
       if (els.toast) els.toast.classList.remove('show');
     }, TIME.TOAST_HIDE);
+  }
+
+  // -----------------------------
+  // Game selection (Bingo / Acid Rain)
+  // -----------------------------
+
+  /** @param {string} v */
+  function normalizeGame(v) {
+    return v === 'acidrain' ? 'acidrain' : 'bingo';
+  }
+
+  /**
+   * Update the "selected" styling + aria state for game buttons.
+   * Why: the difficulty buttons navigate based on this selection.
+   * @param {string} game
+   */
+  function setSelectedGame(game) {
+    state.selectedGame = normalizeGame(game);
+
+    $$('.game-btn').forEach((b) => {
+      const g = normalizeGame(b.dataset.game || 'bingo');
+      const isSelected = g === state.selectedGame;
+      b.classList.toggle('is-selected', isSelected);
+      b.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    });
   }
 
   /**
@@ -155,9 +184,20 @@
 
     // Title morph begins immediately via CSS variables.
     els.body.classList.add('difficulty-mode');
+
+    // Hide targets until the split morph completes (prevents click/flash during animation).
     els.diffs.classList.remove('is-ready');
     els.diffs.classList.remove('is-prep');
     els.diffs.setAttribute('aria-hidden', 'true');
+
+    if (els.games) {
+      els.games.classList.remove('is-ready');
+      els.games.classList.remove('is-prep');
+      els.games.setAttribute('aria-hidden', 'true');
+    }
+
+    // Default game remains Bingo to preserve existing behavior.
+    setSelectedGame('bingo');
 
     // Measure targets AFTER difficulty layout is applied.
     window.requestAnimationFrame(() => {
@@ -200,6 +240,12 @@
         els.diffs.classList.add('is-prep');
         els.diffs.classList.add('is-ready');
         els.diffs.setAttribute('aria-hidden', 'false');
+
+        if (els.games) {
+          els.games.classList.add('is-prep');
+          els.games.classList.add('is-ready');
+          els.games.setAttribute('aria-hidden', 'false');
+        }
         ghosts.forEach((g) => g.classList.add('fade-out'));
       }, TIME.SPLIT_CROSSFADE);
 
@@ -207,6 +253,7 @@
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
         els.diffs.classList.remove('is-prep');
+        if (els.games) els.games.classList.remove('is-prep');
         state.isAnimating = false;
       }, TIME.SPLIT_CLEANUP);
     });
@@ -261,6 +308,12 @@
     els.diffs.classList.remove('is-ready');
     els.diffs.setAttribute('aria-hidden', 'true');
 
+    if (els.games) {
+      els.games.classList.add('is-prep');
+      els.games.classList.remove('is-ready');
+      els.games.setAttribute('aria-hidden', 'true');
+    }
+
     // Keep language buttons hidden while we merge.
     els.body.classList.add('merging-mode');
 
@@ -302,6 +355,7 @@
       window.setTimeout(() => {
         ghosts.forEach((g) => g.remove());
         els.diffs.classList.remove('is-prep');
+        if (els.games) els.games.classList.remove('is-prep');
         els.body.dataset.lang = '';
         state.isAnimating = false;
       }, TIME.MERGE_CLEANUP);
@@ -335,11 +389,22 @@
     btn.addEventListener('click', () => enterDifficulty(btn));
   });
 
+  setSelectedGame(state.selectedGame);
+
+  $$('.game-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSelectedGame(btn.dataset.game || 'bingo');
+    });
+  });
+
+
   $$('.diff-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const diff = btn.dataset.diff || '';
       const lang = els.body.dataset.lang || '';
-      const next = `./bingo.html?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
+      const game = state.selectedGame || 'bingo';
+      const page = (game === 'acidrain') ? 'acidrain.html' : 'bingo.html';
+      const next = `./${page}?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
       navigateTo(next);
     });
   });

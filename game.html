@@ -100,7 +100,13 @@
          - Keeps your "image-only UI" rule: the two game entries are
            represented by their title assets.
          ========================================================= -->
-    <div class="menu-overlay" id="gamePickOverlay" aria-hidden="true">
+    <!--
+      NOTE (anti-flash):
+      Start truly hidden with the boolean `hidden` attribute so the overlay
+      never appears briefly during a hard refresh before CSS loads.
+      JS will remove `hidden` when opening the overlay.
+    -->
+    <div class="menu-overlay" id="gamePickOverlay" aria-hidden="true" hidden>
       <div class="menu-overlay-inner" role="dialog" aria-modal="true" aria-label="Select a mini-game">
         <div class="menu-overlay-actions" aria-label="Mini-game choices">
           <button class="pick-game-btn" data-game="bingo" aria-label="Bingo">

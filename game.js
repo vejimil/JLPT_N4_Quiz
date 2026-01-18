@@ -1,3 +1,141 @@
+/*
+  Global fallback helpers
+  ----------------------
+  Some project revisions ended up calling `waitForStableRect(s)` from a
+  different scope (or before the scoped helper was introduced), which caused
+  a hard crash and made the buttons “disappear”.
+
+  Declaring safe global fallbacks guarantees:
+  - no ReferenceError even if the scoped helpers are missing,
+  - measurements are taken after layout has settled (avoids “ghost animates to
+    a wrong spot, then real buttons pop elsewhere”).
+
+  These are intentionally tiny and dependency-free. If the IIFE below also
+  defines scoped helpers, those will be used instead.
+*/
+
+/* eslint-disable no-var */
+var waitForStableRect =
+  typeof waitForStableRect === 'function'
+    ? waitForStableRect
+    : function waitForStableRect(getRect, onStable) {
+        var EPS = 0.5;
+        var MAX_FRAMES = 20;
+        var NEED_STABLE_FRAMES = 2;
+
+        var last = null;
+        var stableCount = 0;
+        var frames = 0;
+
+        function snapRect(r) {
+          return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        function approxEq(a, b) {
+          return Math.abs(a - b) <= EPS;
+        }
+        function rectApproxEq(a, b) {
+          return (
+            approxEq(a.left, b.left) &&
+            approxEq(a.top, b.top) &&
+            approxEq(a.width, b.width) &&
+            approxEq(a.height, b.height)
+          );
+        }
+
+        function tick() {
+          frames += 1;
+
+          var rect = null;
+          try {
+            var r = getRect();
+            if (r) rect = snapRect(r);
+          } catch (_e) {
+            // Ignore transient read failures (detached nodes, etc.).
+          }
+
+          if (rect && last && rectApproxEq(rect, last)) {
+            stableCount += 1;
+          } else {
+            stableCount = 0;
+          }
+          if (rect) last = rect;
+
+          if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+            onStable(rect || last || getRect());
+            return;
+          }
+
+          window.requestAnimationFrame(tick);
+        }
+
+        window.requestAnimationFrame(tick);
+      };
+
+var waitForStableRects =
+  typeof waitForStableRects === 'function'
+    ? waitForStableRects
+    : function waitForStableRects(getRects, onStable) {
+        var EPS = 0.5;
+        var MAX_FRAMES = 20;
+        var NEED_STABLE_FRAMES = 2;
+
+        var last = null;
+        var stableCount = 0;
+        var frames = 0;
+
+        function snapRect(r) {
+          return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        function approxEq(a, b) {
+          return Math.abs(a - b) <= EPS;
+        }
+        function rectApproxEq(a, b) {
+          return (
+            approxEq(a.left, b.left) &&
+            approxEq(a.top, b.top) &&
+            approxEq(a.width, b.width) &&
+            approxEq(a.height, b.height)
+          );
+        }
+        function rectsApproxEq(as, bs) {
+          if (!as || !bs) return false;
+          if (as.length !== bs.length) return false;
+          for (var i = 0; i < as.length; i += 1) {
+            if (!rectApproxEq(as[i], bs[i])) return false;
+          }
+          return true;
+        }
+
+        function tick() {
+          frames += 1;
+
+          var rects = null;
+          try {
+            var rs = getRects();
+            if (rs && rs.length) rects = rs.map(snapRect);
+          } catch (_e) {
+            // Ignore transient read failures.
+          }
+
+          if (rects && last && rectsApproxEq(rects, last)) {
+            stableCount += 1;
+          } else {
+            stableCount = 0;
+          }
+          if (rects) last = rects;
+
+          if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+            onStable(rects || last);
+            return;
+          }
+
+          window.requestAnimationFrame(tick);
+        }
+
+        window.requestAnimationFrame(tick);
+      };
+/* eslint-enable no-var */
+
 (() => {
   'use strict';
 
@@ -62,6 +200,8 @@
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
+    gamePickOverlay: $id('gamePickOverlay'),
+    gamePickCancel: $id('gamePickCancel'),
   };
 
   // -----------------------------
@@ -71,6 +211,10 @@
   const state = {
     toastTimer: null,
     isAnimating: false,
+    // Selected language/difficulty are needed for routing once the player
+    // chooses a mini-game from the game-pick overlay.
+    selectedLang: '',
+    selectedDiff: '',
   };
 
   function clearToastTimer() {
@@ -379,6 +523,10 @@
     if (!els.diffs) return;
     if (!els.body.classList.contains('difficulty-mode')) return;
 
+    // If the player backs out while the game-pick overlay is open,
+    // close it immediately so it can't linger into the language screen.
+    closeGamePick({ immediate: true });
+
     state.isAnimating = true;
 
     const lang = els.body.dataset.lang || '';
@@ -481,11 +629,90 @@
   }
 
   // -----------------------------
+  // Game pick overlay
+  // -----------------------------
+
+  /**
+   * The game pick overlay exists in the DOM from the start, but is hidden.
+   * We must use the HTML `hidden` attribute to prevent a pre-CSS flash on hard
+   * refresh. When opening, we remove `hidden` and fade in with the `.show` class.
+   */
+  function isGamePickOpen() {
+    return !!(els.gamePickOverlay && !els.gamePickOverlay.hidden);
+  }
+
+  /**
+   * Open the mini-game selection overlay.
+   * @param {string} diff
+   */
+  function openGamePick(diff) {
+    // If the overlay is missing for any reason, fall back to the original behavior.
+    if (!els.gamePickOverlay) {
+      const lang = els.body.dataset.lang || 'ja';
+      const next = `./bingo.html?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff || 'normal')}`;
+      navigateTo(next);
+      return;
+    }
+
+    state.selectedLang = els.body.dataset.lang || 'ja';
+    state.selectedDiff = diff || 'normal';
+
+    // Ensure it is measurable/visible in the render tree before we fade in.
+    els.gamePickOverlay.hidden = false;
+    els.gamePickOverlay.setAttribute('aria-hidden', 'false');
+
+    // Next frame: add `.show` so CSS can fade it in.
+    window.requestAnimationFrame(() => {
+      if (els.gamePickOverlay) els.gamePickOverlay.classList.add('show');
+    });
+  }
+
+  /**
+   * Close the mini-game selection overlay.
+   * @param {{immediate?: boolean}} [opts]
+   */
+  function closeGamePick(opts) {
+    if (!els.gamePickOverlay) return;
+
+    const immediate = !!(opts && opts.immediate);
+    els.gamePickOverlay.classList.remove('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'true');
+
+    if (immediate) {
+      els.gamePickOverlay.hidden = true;
+      return;
+    }
+
+    // Match the CSS fade-out duration (180ms). We add a small buffer.
+    window.setTimeout(() => {
+      if (els.gamePickOverlay) els.gamePickOverlay.hidden = true;
+    }, 220);
+  }
+
+  /**
+   * Navigate to the selected mini-game with the current lang/diff params.
+   * @param {string} gameId
+   */
+  function navigateToMiniGame(gameId) {
+    const lang = state.selectedLang || els.body.dataset.lang || 'ja';
+    const diff = state.selectedDiff || 'normal';
+
+    const page = gameId === 'acidrain' ? 'acidrain.html' : 'bingo.html';
+    const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
+    navigateTo(next);
+  }
+
+  // -----------------------------
   // Event wiring
   // -----------------------------
 
   if (els.backBtn) {
     els.backBtn.addEventListener('click', () => {
+      // If the game selection overlay is open, back closes only that layer.
+      if (isGamePickOpen()) {
+        closeGamePick();
+        return;
+      }
       if (els.body.classList.contains('difficulty-mode')) {
         exitDifficulty();
         return;
@@ -501,11 +728,20 @@
   $$('.diff-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const diff = btn.dataset.diff || '';
-      const lang = els.body.dataset.lang || '';
-      const next = `./bingo.html?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
-      navigateTo(next);
+      openGamePick(diff);
     });
   });
+
+  $$('.pick-game-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const gameId = btn.dataset.game || 'bingo';
+      navigateToMiniGame(gameId);
+    });
+  });
+
+  if (els.gamePickCancel) {
+    els.gamePickCancel.addEventListener('click', () => closeGamePick());
+  }
 
   // Prevent orphaned timers when the page is backgrounded or navigated away.
   window.addEventListener('pagehide', clearToastTimer);

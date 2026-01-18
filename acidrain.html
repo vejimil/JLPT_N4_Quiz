@@ -29,7 +29,7 @@
 
       /* Choice buttons */
       --choice-gap: clamp(10px, 1.5vw, 16px);
-      --choice-cols: 6; /* JS can override */
+      --choice-cols: 5; /* JS can override */
       --choice-ar: 2.4 / 1;
       --choice-minw: 120px;
       --choices-maxw: 1200px;
@@ -98,11 +98,11 @@
       border: 0;
       padding: 0;
       background: transparent;
-      cursor: pointer;
+      cursor: grab;
       position: relative;
       display: inline-block;
       transition: transform 120ms ease;
-      touch-action: manipulation;
+      touch-action: none;
       transform: translateZ(0);
       box-sizing: border-box;
     }
@@ -185,10 +185,10 @@
       transform: translate3d(0,0,0);
       will-change: transform;
       touch-action: none;
-      cursor: grab;
       user-select: none;
+      pointer-events: none; /* choices are dragged; drops are geometric targets */
+      cursor: default;
     }
-    .drop:active{ cursor: grabbing; }
 
     .drop-bg{
       position: absolute;
@@ -247,12 +247,32 @@
       border: 0;
       padding: 0;
       background: transparent;
-      cursor: pointer;
+      cursor: grab;
       position: relative;
       transform: translateZ(0);
-      touch-action: manipulation;
+      touch-action: none;
       pointer-events: auto;
     }
+
+    .choice-btn:active{ cursor: grabbing; }
+
+    /* Drag ghost (the moving copy of a choice button) */
+    .choice-ghost{
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 9999;
+      pointer-events: none !important;
+      will-change: transform;
+      transform: translate3d(0,0,0);
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
+    }
+
+    /* Dim the source button while its ghost is being dragged */
+    .choice-btn.is-drag-source{
+      opacity: 0.45;
+    }
+
 
     .choice-bg{
       position: absolute;

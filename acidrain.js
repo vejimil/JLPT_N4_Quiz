@@ -1,11 +1,12 @@
 /*
-  Acid Rain (Drag & Drop)
+  Acid Rain (Drag Choices into Falling Blocks)
 
   Core rules (per your spec):
-  - A falling item is either a "word side" or a "meaning side"
+  - A falling block shows either the "word side" or the "meaning side"
   - The bottom choices are the *opposite* side (direction can flip per round)
+  - Interaction: you drag a choice into the falling block (the block is the target)
   - Missing an item (it reaches the bottom) costs 1 heart
-  - Wrong drop does NOT cost a heart (only gives feedback), to keep the game fair on touch devices
+  - Wrong match does NOT cost a heart (only gives feedback), to keep the game fair on touch devices
   - Pause / Game Over overlays reuse the same asset philosophy as Bingo
 
   Code-health goals:
@@ -91,9 +92,9 @@
   // - maxActive prevents unfair clutter (especially on mobile)
   // - choices controls cognitive load
   const DIFF = Object.freeze({
-    easy:   { choices: 6,  spawnEveryMs: 1350, fallSpeedPxSec: 240, maxActive: 3, roundGoal: 10 },
-    normal: { choices: 10, spawnEveryMs: 1100, fallSpeedPxSec: 300, maxActive: 4, roundGoal: 14 },
-    hard:   { choices: 10, spawnEveryMs: 900,  fallSpeedPxSec: 380, maxActive: 5, roundGoal: 16 },
+    easy:   { choices: 5,  spawnEveryMs: 1350, fallSpeedPxSec: 240, maxActive: 3, roundGoal: 10 },
+    normal: { choices: 5, spawnEveryMs: 1100, fallSpeedPxSec: 300, maxActive: 4, roundGoal: 14 },
+    hard:   { choices: 5, spawnEveryMs: 900,  fallSpeedPxSec: 380, maxActive: 5, roundGoal: 16 },
   });
 
   // -----------------------------
@@ -198,11 +199,10 @@
 
   // Layout cache (recomputed on resize)
   let fieldRect = null;
-  let choiceRects = [];       // [{ id, rect }]
 
   // Falling items
   let nextDropId = 1;
-  const drops = new Map();    // id -> { id, pair, el, x, y, w, h, vy, dragging, pointerId, offX, offY }
+  const drops = new Map();    // id -> { id, pair, el, x, y, w, h, vy }
 
   // RAF loop
   let raf = 0;
@@ -255,6 +255,7 @@
   }
 
   function openOverlay(state){
+    cancelActiveDrag();
     setOverlayState(state);
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden', 'false');
@@ -274,6 +275,7 @@
   function gameOver(){
     if (done) return;
     done = true;
+    cancelActiveDrag();
     openOverlay('gameover');
   }
 
@@ -330,12 +332,6 @@
 
   function recacheRects(){
     fieldRect = elField.getBoundingClientRect();
-
-    choiceRects = $$('.choice-btn', elChoices).map(btn => ({
-      id: btn.dataset.pairId || '',
-      rect: btn.getBoundingClientRect(),
-      el: btn,
-    }));
   }
 
   let resizeRaf = 0;
@@ -379,6 +375,9 @@
       renderTextBlock(textEl, toTextParts(pair, round.choiceSide));
 
       elChoices.appendChild(btn);
+
+      // New interaction: drag *choices* into the falling block.
+      btn.addEventListener('pointerdown', onChoicePointerDown, { passive: false });
     }
 
     // Rect cache must happen after DOM insertion.
@@ -386,6 +385,7 @@
   }
 
   function startNewRound(){
+    cancelActiveDrag();
     roundHits = 0;
 
     const pairs = getPairs(lang);
@@ -446,17 +446,10 @@
       w,
       h,
       vy: cfg.fallSpeedPxSec,
-      dragging: false,
-      pointerId: null,
-      offX: 0,
-      offY: 0,
     };
 
     drops.set(id, drop);
     applyDropTransform(drop);
-
-    // Drag handlers are per-drop (keeps event logic local and easy to remove).
-    el.addEventListener('pointerdown', (e) => onDropPointerDown(e, drop));
   }
 
   function applyDropTransform(drop){
@@ -472,40 +465,41 @@
   }
 
   // -----------------------------
-  // Drop -> choice detection (generous snapping)
+  // Choice -> drop detection (generous snapping)
   // -----------------------------
 
-  function findClosestChoiceForDrop(drop){
-    // We compare centers in viewport coordinates for consistent snapping.
-    const dropCx = fieldRect.left + drop.x + (drop.w / 2);
-    const dropCy = fieldRect.top + drop.y + (drop.h / 2);
+  function findClosestDropForPoint(clientX, clientY){
+    if (!fieldRect) return null;
 
     let best = null;
     let bestDist = Infinity;
 
-    for (const c of choiceRects) {
-      const r = c.rect;
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
+    drops.forEach(drop => {
+      // Drop rect in viewport coordinates.
+      const l = fieldRect.left + drop.x;
+      const t = fieldRect.top + drop.y;
+      const r = l + drop.w;
+      const b = t + drop.h;
 
-      const dx = dropCx - cx;
-      const dy = dropCy - cy;
+      const cx = (l + r) / 2;
+      const cy = (t + b) / 2;
+
+      const dx = clientX - cx;
+      const dy = clientY - cy;
       const dist = Math.hypot(dx, dy);
 
-      // Threshold: “close enough” means either overlapping OR within a radius.
-      const overlaps =
-        dropCx >= r.left && dropCx <= r.right &&
-        dropCy >= r.top && dropCy <= r.bottom;
-
-      const radius = Math.max(r.width, r.height) * 0.55;
+      // Accept either a direct overlap or a radius hit (touch-friendly).
+      const overlaps = clientX >= l && clientX <= r && clientY >= t && clientY <= b;
+      const radius = Math.max(drop.w, drop.h) * 0.65;
 
       if (overlaps || dist <= radius) {
         if (dist < bestDist) {
           bestDist = dist;
-          best = c;
+          best = drop;
         }
       }
-    }
+    });
+
     return best;
   }
 
@@ -518,76 +512,141 @@
   }
 
   // -----------------------------
-  // Drag interactions
+  // Drag interactions (Choice -> Drop)
   // -----------------------------
 
-  function onDropPointerDown(e, drop){
+  // Single active drag at a time (keeps mobile behavior predictable).
+  let activeDrag = null;
+
+  function cancelActiveDrag(){
+    if (!activeDrag) return;
+
+    try {
+      activeDrag.sourceBtn.classList.remove('is-drag-source');
+    } catch {}
+
+    if (activeDrag.ghost && activeDrag.ghost.parentNode) {
+      activeDrag.ghost.parentNode.removeChild(activeDrag.ghost);
+    }
+
+    activeDrag = null;
+  }
+
+  function createChoiceGhost(sourceBtn){
+    const rect = sourceBtn.getBoundingClientRect();
+    const ghost = sourceBtn.cloneNode(true);
+
+    ghost.classList.add('choice-ghost');
+    ghost.classList.remove('flash');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.tabIndex = -1;
+
+    // Lock the ghost size so it doesn't reflow when moved around the page.
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+
+    document.body.appendChild(ghost);
+
+    // Position at the source button initially.
+    ghost.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+
+    return { ghost, rect };
+  }
+
+  function onChoicePointerDown(e){
     if (paused || done) return;
+    if (!round) return;
+    if (activeDrag) return;
 
-    drop.dragging = true;
-    drop.pointerId = e.pointerId;
+    const sourceBtn = e.currentTarget;
+    const pairId = sourceBtn?.dataset?.pairId || '';
+    if (!pairId) return;
 
-    // Offset keeps the finger “attached” at the grab point (important for touch).
-    const dropRect = drop.el.getBoundingClientRect();
-    drop.offX = e.clientX - dropRect.left;
-    drop.offY = e.clientY - dropRect.top;
+    const { ghost, rect } = createChoiceGhost(sourceBtn);
 
-    drop.el.setPointerCapture(e.pointerId);
-    drop.el.style.cursor = 'grabbing';
+    // Offset: keep the finger attached at the grab point.
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
 
-    // Prevent accidental page gestures while dragging.
+    activeDrag = {
+      pointerId: e.pointerId,
+      pairId,
+      sourceBtn,
+      ghost,
+      offX,
+      offY,
+      x: rect.left,
+      y: rect.top,
+    };
+
+    sourceBtn.classList.add('is-drag-source');
+    sourceBtn.setPointerCapture(e.pointerId);
+
+    // Prevent browser gestures (especially iOS) while dragging upward.
     e.preventDefault();
   }
 
-  function onGlobalPointerMove(e){
-    // Move only the active dragging drop (pointerId match)
-    drops.forEach(drop => {
-      if (!drop.dragging || drop.pointerId !== e.pointerId) return;
-      if (!fieldRect) return;
+  function moveActiveDrag(e){
+    if (!activeDrag) return;
+    if (activeDrag.pointerId !== e.pointerId) return;
 
-      const localX = e.clientX - fieldRect.left - drop.offX;
-      const localY = e.clientY - fieldRect.top - drop.offY;
+    const x = e.clientX - activeDrag.offX;
+    const y = e.clientY - activeDrag.offY;
 
-      // Clamp inside field with a tiny bleed allowance (feels better on touch).
-      const bleed = 10;
-      drop.x = clamp(localX, -bleed, fieldRect.width - drop.w + bleed);
-      drop.y = clamp(localY, -bleed, fieldRect.height - drop.h + bleed);
+    activeDrag.x = x;
+    activeDrag.y = y;
+    activeDrag.ghost.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 
-      applyDropTransform(drop);
-    });
+    // Prevent accidental scrolling on touch browsers.
+    e.preventDefault();
   }
 
-  function onGlobalPointerUp(e){
-    drops.forEach(drop => {
-      if (!drop.dragging || drop.pointerId !== e.pointerId) return;
-      drop.dragging = false;
-      drop.pointerId = null;
-      drop.el.style.cursor = '';
+  function endActiveDrag(e){
+    if (!activeDrag) return;
+    if (activeDrag.pointerId !== e.pointerId) return;
 
-      // Evaluate drop vs choices.
-      recacheRects(); // cheap enough; ensures correct after orientation changes mid-drag
-      const choice = findClosestChoiceForDrop(drop);
+    // Keep a local ref because we null out activeDrag during cleanup.
+    const drag = activeDrag;
+    activeDrag = null;
 
-      if (!choice) return; // released in empty space: just continue falling
+    // Evaluate: did we drop close enough to a falling block?
+    recacheRects();
+    const targetDrop = findClosestDropForPoint(e.clientX, e.clientY);
 
-      const isCorrect = (choice.id === String(drop.pair.id));
-      flashChoice(choice.el);
+    if (targetDrop) {
+      const isCorrect = (String(drag.pairId) === String(targetDrop.pair.id));
+
+      // Feedback: the source button flashes so the player knows *which* option they used.
+      flashChoice(drag.sourceBtn);
 
       if (isCorrect) {
-        // Correct: remove drop and progress the round.
-        removeDrop(drop);
+        removeDrop(targetDrop);
         roundHits += 1;
 
         if (roundHits >= cfg.roundGoal) {
           startNewRound();
         }
       } else {
-        // Wrong: no heart penalty (your rule only penalizes “miss”).
-        drop.el.classList.remove('wrong');
-        void drop.el.offsetWidth;
-        drop.el.classList.add('wrong');
+        targetDrop.el.classList.remove('wrong');
+        void targetDrop.el.offsetWidth;
+        targetDrop.el.classList.add('wrong');
       }
-    });
+    }
+
+    // Cleanup ghost + source styling.
+    drag.sourceBtn.classList.remove('is-drag-source');
+    if (drag.ghost && drag.ghost.parentNode) drag.ghost.parentNode.removeChild(drag.ghost);
+
+    // Prevent a stray click after drag release on some browsers.
+    e.preventDefault();
+  }
+
+  function onGlobalPointerMove(e){
+    moveActiveDrag(e);
+  }
+
+  function onGlobalPointerUp(e){
+    endActiveDrag(e);
   }
 
   // -----------------------------
@@ -616,8 +675,6 @@
     const dt = dtMs / 1000;
 
     drops.forEach(drop => {
-      if (drop.dragging) return;
-
       drop.y += drop.vy * dt;
 
       // Bottom = field height (choices are outside the field).
@@ -663,8 +720,8 @@
 
     // Drag move/up are global to handle cases where the pointer leaves the element.
     window.addEventListener('pointermove', onGlobalPointerMove, { passive: false });
-    window.addEventListener('pointerup', onGlobalPointerUp, { passive: true });
-    window.addEventListener('pointercancel', onGlobalPointerUp, { passive: true });
+    window.addEventListener('pointerup', onGlobalPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onGlobalPointerUp, { passive: false });
 
     // Auto-pause when the tab is hidden (prevents “unfair” heart loss offscreen).
     document.addEventListener('visibilitychange', () => {
@@ -682,6 +739,7 @@
   }
 
   function reset(){
+    cancelActiveDrag();
     paused = false;
     done = false;
     hearts = 3;

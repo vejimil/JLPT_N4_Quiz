@@ -588,9 +588,10 @@
       }
     }
 
-    // Actions: keep the reference layout (two corners).
-    // Pause: RESUME (left) + BACK (right)
-    // GameOver/TimeUp/Win: BACK (left) + RETRY (right)
+    // Actions: match the product-wide overlay style (Acid Rain is the source of truth).
+    // We only control which buttons are shown and their flex order.
+    // Pause: RESUME + BACK
+    // GameOver/TimeUp/Win: BACK + RETRY
     if (state === 'pause') {
       setOverlayVisibility(resumeBtn, true);
       setOverlayVisibility(backBtn, true);

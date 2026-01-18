@@ -29,15 +29,21 @@
 
       /* Choice buttons */
       --choice-gap: clamp(10px, 1.5vw, 16px);
-      --choice-cols: 5; /* JS can override */
+      --choice-cols: 6; /* JS can override */
       --choice-ar: 2.4 / 1;
-      --choice-minw: 120px;
-      --choices-maxw: 1200px;
+      --choice-minw: 104px;
+      --choices-maxw: 900px;
 
       /* Overlay */
       --overlay-title-h: clamp(44px, 7vw, 96px);
       --overlay-btn-w: clamp(140px, 22vw, 220px);
       --overlay-btn-h: clamp(44px, 7vw, 70px);
+
+      /* Shared typography (Bingo / Acid Rain) */
+      --txt-color: rgba(255,255,255,0.95);
+      --txt-shadow: 0 2px 0 rgba(0,0,0,0.65), 0 0 6px rgba(0,0,0,0.35);
+      --txt-weight: 900;
+      --txt-letter: -0.2px;
     }
 
     html, body{
@@ -98,11 +104,11 @@
       border: 0;
       padding: 0;
       background: transparent;
-      cursor: grab;
+      cursor: pointer;
       position: relative;
       display: inline-block;
       transition: transform 120ms ease;
-      touch-action: none;
+      touch-action: manipulation;
       transform: translateZ(0);
       box-sizing: border-box;
     }
@@ -131,10 +137,15 @@
     .topbar{
       display: grid;
       grid-template-columns: auto 1fr auto;
+      grid-template-areas: "pause title hp";
       align-items: start;
       column-gap: var(--gap);
       min-width: 0;
     }
+
+    .pause-btn{ grid-area: pause; }
+    .title{ grid-area: title; }
+    .hp{ grid-area: hp; }
 
     .pause-btn{
       width: var(--pause-w);
@@ -150,7 +161,7 @@
     .title img{
       height: var(--title-h);
       width: auto;
-      max-width: 92vw;
+      max-width: 100%;
     }
 
     .hp{
@@ -185,10 +196,10 @@
       transform: translate3d(0,0,0);
       will-change: transform;
       touch-action: none;
+      cursor: grab;
       user-select: none;
-      pointer-events: none; /* choices are dragged; drops are geometric targets */
-      cursor: default;
     }
+    .drop:active{ cursor: grabbing; }
 
     .drop-bg{
       position: absolute;
@@ -208,18 +219,22 @@
       align-items: center;
 
       text-align: center;
-      font-weight: 800;
-      letter-spacing: -0.2px;
-      color: #0b0b0b;
+      font-weight: var(--txt-weight);
+      letter-spacing: var(--txt-letter);
+      color: var(--txt-color);
+      text-shadow: var(--txt-shadow);
+
+      /* Match Bingo readability; JS will shrink if it overflows. */
+      font-size: clamp(14px, 1.55vw, 22px);
+      line-height: 1.15;
 
       /* allow wrap for long vocabulary */
       overflow: hidden;
       word-break: break-word;
-      line-height: 1.05;
     }
     .drop-text .sub{
       font-weight: 700;
-      opacity: 0.85;
+      opacity: 0.95;
       margin-top: 2px;
     }
 
@@ -250,29 +265,14 @@
       cursor: grab;
       position: relative;
       transform: translateZ(0);
+      /* Primary interaction is dragging a choice into a falling block.
+         - touch-action:none prevents browser pan/zoom from hijacking the drag.
+         - cursor feedback helps on desktop. */
       touch-action: none;
       pointer-events: auto;
     }
 
     .choice-btn:active{ cursor: grabbing; }
-
-    /* Drag ghost (the moving copy of a choice button) */
-    .choice-ghost{
-      position: fixed;
-      left: 0;
-      top: 0;
-      z-index: 9999;
-      pointer-events: none !important;
-      will-change: transform;
-      transform: translate3d(0,0,0);
-      filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
-    }
-
-    /* Dim the source button while its ghost is being dragged */
-    .choice-btn.is-drag-source{
-      opacity: 0.45;
-    }
-
 
     .choice-bg{
       position: absolute;
@@ -292,18 +292,22 @@
       align-items: center;
 
       text-align: center;
-      font-weight: 900;
-      letter-spacing: -0.2px;
-      color: #0b0b0b;
+      font-weight: var(--txt-weight);
+      letter-spacing: var(--txt-letter);
+      color: var(--txt-color);
+      text-shadow: var(--txt-shadow);
+
+      /* Match Bingo answer button readability; JS will shrink if needed. */
+      font-size: clamp(14px, 1.35vw, 18px);
+      line-height: 1.15;
 
       overflow: hidden;
       word-break: break-word;
-      line-height: 1.05;
       pointer-events: none; /* drop detection uses rects; text shouldn’t steal events */
     }
     .choice-text .sub{
-      font-weight: 800;
-      opacity: 0.85;
+      font-weight: 700;
+      opacity: 0.95;
       margin-top: 2px;
     }
 
@@ -351,7 +355,7 @@
     .overlay-title-img{
       height: var(--overlay-title-h);
       width: auto;
-      max-width: 92vw;
+      max-width: 100%;
     }
 
     .overlay-title-text{
@@ -374,6 +378,43 @@
       height: var(--overlay-btn-h);
     }
 
+
+
+    /* Small screens: prevent title/HP overlap + make bottom row centered
+       Why: the ACID RAIN title asset is wide, so at fixed height it can collide with
+       the left/right HUD. We stack the title on its own row, and we switch choices to
+       flex-wrap so the last row naturally centers (instead of left-aligning like a grid). */
+    @media (max-width: 520px){
+      :root{
+        --title-h: clamp(36px, 8.8vw, 52px);
+        --hp-h: clamp(28px, 7vw, 46px);
+      }
+
+      .topbar{
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "title title"
+          "pause hp";
+        row-gap: clamp(6px, 1.4vh, 12px);
+        align-items: center;
+      }
+      .pause-btn{ justify-self: start; }
+      .hp{ justify-self: end; padding-top: 0; }
+      .title{ justify-self: center; }
+
+      .choices{
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+      }
+      .choice-btn{
+        /* 3-per-row intention on phones; flex centers incomplete last rows automatically */
+        flex: 0 1 calc((100% - (2 * var(--choice-gap))) / 3);
+        min-width: 0;
+        max-width: 220px;
+      }
+    }
     /* Safety: prevent dblclick zoom on desktop */
     @media (pointer:fine){
       body{ user-select: none; }

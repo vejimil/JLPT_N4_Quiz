@@ -1,3 +1,141 @@
+/*
+  Global fallback helpers
+  ----------------------
+  Some project revisions ended up calling `waitForStableRect(s)` from a
+  different scope (or before the scoped helper was introduced), which caused
+  a hard crash and made the buttons “disappear”.
+
+  Declaring safe global fallbacks guarantees:
+  - no ReferenceError even if the scoped helpers are missing,
+  - measurements are taken after layout has settled (avoids “ghost animates to
+    a wrong spot, then real buttons pop elsewhere”).
+
+  These are intentionally tiny and dependency-free. If the IIFE below also
+  defines scoped helpers, those will be used instead.
+*/
+
+/* eslint-disable no-var */
+var waitForStableRect =
+  typeof waitForStableRect === 'function'
+    ? waitForStableRect
+    : function waitForStableRect(getRect, onStable) {
+        var EPS = 0.5;
+        var MAX_FRAMES = 20;
+        var NEED_STABLE_FRAMES = 2;
+
+        var last = null;
+        var stableCount = 0;
+        var frames = 0;
+
+        function snapRect(r) {
+          return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        function approxEq(a, b) {
+          return Math.abs(a - b) <= EPS;
+        }
+        function rectApproxEq(a, b) {
+          return (
+            approxEq(a.left, b.left) &&
+            approxEq(a.top, b.top) &&
+            approxEq(a.width, b.width) &&
+            approxEq(a.height, b.height)
+          );
+        }
+
+        function tick() {
+          frames += 1;
+
+          var rect = null;
+          try {
+            var r = getRect();
+            if (r) rect = snapRect(r);
+          } catch (_e) {
+            // Ignore transient read failures (detached nodes, etc.).
+          }
+
+          if (rect && last && rectApproxEq(rect, last)) {
+            stableCount += 1;
+          } else {
+            stableCount = 0;
+          }
+          if (rect) last = rect;
+
+          if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+            onStable(rect || last || getRect());
+            return;
+          }
+
+          window.requestAnimationFrame(tick);
+        }
+
+        window.requestAnimationFrame(tick);
+      };
+
+var waitForStableRects =
+  typeof waitForStableRects === 'function'
+    ? waitForStableRects
+    : function waitForStableRects(getRects, onStable) {
+        var EPS = 0.5;
+        var MAX_FRAMES = 20;
+        var NEED_STABLE_FRAMES = 2;
+
+        var last = null;
+        var stableCount = 0;
+        var frames = 0;
+
+        function snapRect(r) {
+          return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        function approxEq(a, b) {
+          return Math.abs(a - b) <= EPS;
+        }
+        function rectApproxEq(a, b) {
+          return (
+            approxEq(a.left, b.left) &&
+            approxEq(a.top, b.top) &&
+            approxEq(a.width, b.width) &&
+            approxEq(a.height, b.height)
+          );
+        }
+        function rectsApproxEq(as, bs) {
+          if (!as || !bs) return false;
+          if (as.length !== bs.length) return false;
+          for (var i = 0; i < as.length; i += 1) {
+            if (!rectApproxEq(as[i], bs[i])) return false;
+          }
+          return true;
+        }
+
+        function tick() {
+          frames += 1;
+
+          var rects = null;
+          try {
+            var rs = getRects();
+            if (rs && rs.length) rects = rs.map(snapRect);
+          } catch (_e) {
+            // Ignore transient read failures.
+          }
+
+          if (rects && last && rectsApproxEq(rects, last)) {
+            stableCount += 1;
+          } else {
+            stableCount = 0;
+          }
+          if (rects) last = rects;
+
+          if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+            onStable(rects || last);
+            return;
+          }
+
+          window.requestAnimationFrame(tick);
+        }
+
+        window.requestAnimationFrame(tick);
+      };
+/* eslint-enable no-var */
+
 (() => {
   'use strict';
 
@@ -62,6 +200,8 @@
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
+    gamePickOverlay: $id('gamePickOverlay'),
+    gamePickCancel: $id('gamePickCancel'),
   };
 
   // -----------------------------
@@ -71,6 +211,10 @@
   const state = {
     toastTimer: null,
     isAnimating: false,
+    // Selected language/difficulty are needed for routing once the player
+    // chooses a mini-game from the game-pick overlay.
+    selectedLang: '',
+    selectedDiff: '',
   };
 
   function clearToastTimer() {
@@ -131,6 +275,139 @@
     el.style.height = rect.height + 'px';
   }
 
+  // -----------------------------
+  // Layout measurement helpers
+  // -----------------------------
+
+  /**
+   * Compare two numbers with a small tolerance.
+   * We need this because fractional pixels + fonts can produce sub-pixel jitter
+   * for 1 frame during class toggles.
+   */
+  const approxEq = (a, b, eps) => Math.abs(a - b) <= eps;
+
+  /** @param {DOMRect} a @param {DOMRect} b @param {number} eps */
+  function rectApproxEq(a, b, eps) {
+    return (
+      approxEq(a.left, b.left, eps) &&
+      approxEq(a.top, b.top, eps) &&
+      approxEq(a.width, b.width, eps) &&
+      approxEq(a.height, b.height, eps)
+    );
+  }
+
+  /**
+   * Snapshot a DOMRect into a plain object so it can't mutate between frames.
+   * @param {DOMRect} r
+   */
+  function snapRect(r) {
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  }
+
+  /**
+   * Some browsers can return transient (1-frame) incorrect rects right after
+   * toggling classes that affect layout/visibility. This helper waits until the
+   * rect(s) are stable for a couple frames (or times out) before proceeding.
+   *
+   * @param {() => DOMRect} getRect
+   * @param {(rect: DOMRect) => void} onStable
+   */
+  function waitForStableRect(getRect, onStable) {
+    const EPS = 0.5;
+    const MAX_FRAMES = 20;
+    const NEED_STABLE_FRAMES = 2;
+
+    let last = null;
+    let stableCount = 0;
+    let frames = 0;
+
+    const tick = () => {
+      frames += 1;
+
+      /** @type {DOMRect|null} */
+      let rect = null;
+      try {
+        const r = getRect();
+        if (r) rect = /** @type {any} */ (snapRect(r));
+      } catch {
+        // If layout can't be read (detached DOM), just finish with last.
+      }
+
+      if (rect && last && rectApproxEq(rect, last, EPS)) {
+        stableCount += 1;
+      } else {
+        stableCount = 0;
+      }
+
+      if (rect) last = rect;
+
+      if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+        // Prefer the most recent rect we successfully captured.
+        onStable(/** @type {any} */ (rect || last || getRect()));
+        return;
+      }
+
+      window.requestAnimationFrame(tick);
+    };
+
+    window.requestAnimationFrame(tick);
+  }
+
+  /**
+   * Stable measurement for multiple buttons.
+   * @param {() => DOMRect[]} getRects
+   * @param {(rects: DOMRect[]|null) => void} onStable
+   */
+  function waitForStableRects(getRects, onStable) {
+    const EPS = 0.5;
+    const MAX_FRAMES = 20;
+    const NEED_STABLE_FRAMES = 2;
+
+    /** @type {{left:number,top:number,width:number,height:number}[]|null} */
+    let last = null;
+    let stableCount = 0;
+    let frames = 0;
+
+    const rectsApproxEq = (a, b) => {
+      if (!a || !b) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        if (!rectApproxEq(a[i], b[i], EPS)) return false;
+      }
+      return true;
+    };
+
+    const tick = () => {
+      frames += 1;
+
+      /** @type {{left:number,top:number,width:number,height:number}[]|null} */
+      let rects = null;
+      try {
+        const rs = getRects();
+        if (Array.isArray(rs)) rects = rs.map((r) => snapRect(r));
+      } catch {
+        // ignore
+      }
+
+      if (rects && last && rectsApproxEq(rects, last)) {
+        stableCount += 1;
+      } else {
+        stableCount = 0;
+      }
+
+      if (rects) last = rects;
+
+      if (stableCount >= NEED_STABLE_FRAMES || frames >= MAX_FRAMES) {
+        onStable(/** @type {any} */ (rects || last));
+        return;
+      }
+
+      window.requestAnimationFrame(tick);
+    };
+
+    window.requestAnimationFrame(tick);
+  }
+
   /**
    * Enter Difficulty mode: split a selected language button into 3 ghost buttons
    * that morph into the real difficulty buttons.
@@ -159,57 +436,83 @@
     els.diffs.classList.remove('is-prep');
     els.diffs.setAttribute('aria-hidden', 'true');
 
-    // Measure targets AFTER difficulty layout is applied.
-    window.requestAnimationFrame(() => {
-      const targets = $$('.diff-btn', els.diffs);
-      const targetRects = targets.map((b) => b.getBoundingClientRect());
+    // Make the destination container measurable *before* we read target rects.
+    //
+    // Some browsers return transient/wrong rects for children inside a
+    // visibility:hidden parent (even though spec-wise it should still be
+    // measurable). When that happens, ghosts animate to a wrong spot and then
+    // the real buttons “teleport” at the crossfade.
+    //
+    // `.is-prep` flips only `visibility: visible` while keeping opacity 0.
+    els.diffs.classList.add('is-prep');
 
-      const ghosts = [
-        createGhost('assets/EASY.png'),
-        createGhost('assets/NORMAL.png'),
-        createGhost('assets/HARD.png'),
-      ].filter(Boolean);
+    // Measure targets AFTER difficulty layout is applied *and stable*.
+    waitForStableRects(
+      () => $$('.diff-btn', els.diffs).map((b) => b.getBoundingClientRect()),
+      (targetRects) => {
+        if (!targetRects || targetRects.length !== 3) {
+          // Fail safe: show the real buttons rather than animating to a wrong place.
+          els.diffs.classList.add('is-ready');
+          els.diffs.setAttribute('aria-hidden', 'false');
+          els.diffs.classList.remove('is-prep');
+          state.isAnimating = false;
+          return;
+        }
 
-      ghosts.forEach((g) => {
-        setGhostRect(g, srcRect);
-        els.animLayer.appendChild(g);
-      });
+        const ghosts = [
+          createGhost('assets/EASY.png'),
+          createGhost('assets/NORMAL.png'),
+          createGhost('assets/HARD.png'),
+        ].filter(Boolean);
 
-      // Kick off the split morph.
-      window.requestAnimationFrame(() => {
-        ghosts.forEach((g, i) => {
-          const tr = targetRects[i];
-          if (!tr) return;
+        if (ghosts.length !== 3) {
+          els.diffs.classList.add('is-ready');
+          els.diffs.setAttribute('aria-hidden', 'false');
+          els.diffs.classList.remove('is-prep');
+          state.isAnimating = false;
+          return;
+        }
 
-          const dx = tr.left - srcRect.left;
-          const dy = tr.top - srcRect.top;
-          const sx = tr.width / srcRect.width;
-          const sy = tr.height / srcRect.height;
-
-          g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        ghosts.forEach((g) => {
+          setGhostRect(g, srcRect);
+          els.animLayer.appendChild(g);
         });
-      });
 
-      // Show labels after the split starts so text doesn't overlap at the beginning.
-      window.setTimeout(() => {
-        ghosts.forEach((g) => g.classList.add('show-label'));
-      }, TIME.SPLIT_LABEL_SHOW);
+        // Kick off the split morph.
+        window.requestAnimationFrame(() => {
+          ghosts.forEach((g, i) => {
+            const tr = targetRects[i];
+            if (!tr) return;
 
-      // Crossfade ghosts -> real difficulty buttons to avoid end-of-animation flicker.
-      window.setTimeout(() => {
-        els.diffs.classList.add('is-prep');
-        els.diffs.classList.add('is-ready');
-        els.diffs.setAttribute('aria-hidden', 'false');
-        ghosts.forEach((g) => g.classList.add('fade-out'));
-      }, TIME.SPLIT_CROSSFADE);
+            const dx = tr.left - srcRect.left;
+            const dy = tr.top - srcRect.top;
+            const sx = tr.width / srcRect.width;
+            const sy = tr.height / srcRect.height;
 
-      // Cleanup after transitions finish.
-      window.setTimeout(() => {
-        ghosts.forEach((g) => g.remove());
-        els.diffs.classList.remove('is-prep');
-        state.isAnimating = false;
-      }, TIME.SPLIT_CLEANUP);
-    });
+            g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+          });
+        });
+
+        // Show labels after the split starts so text doesn't overlap at the beginning.
+        window.setTimeout(() => {
+          ghosts.forEach((g) => g.classList.add('show-label'));
+        }, TIME.SPLIT_LABEL_SHOW);
+
+        // Crossfade ghosts -> real difficulty buttons to avoid end-of-animation flicker.
+        window.setTimeout(() => {
+          els.diffs.classList.add('is-ready');
+          els.diffs.setAttribute('aria-hidden', 'false');
+          ghosts.forEach((g) => g.classList.add('fade-out'));
+        }, TIME.SPLIT_CROSSFADE);
+
+        // Cleanup after transitions finish.
+        window.setTimeout(() => {
+          ghosts.forEach((g) => g.remove());
+          els.diffs.classList.remove('is-prep');
+          state.isAnimating = false;
+        }, TIME.SPLIT_CLEANUP);
+      }
+    );
   }
 
   /**
@@ -219,6 +522,10 @@
     if (state.isAnimating) return;
     if (!els.diffs) return;
     if (!els.body.classList.contains('difficulty-mode')) return;
+
+    // If the player backs out while the game-pick overlay is open,
+    // close it immediately so it can't linger into the language screen.
+    closeGamePick({ immediate: true });
 
     state.isAnimating = true;
 
@@ -269,47 +576,51 @@
       els.body.classList.remove('difficulty-mode');
 
       // Destination rect after layout returns to Language screen.
-      const dstRect = langBtn.getBoundingClientRect();
+      // (Wait for stability: some browsers produce a transient 1-frame rect.)
+      waitForStableRect(
+        () => langBtn.getBoundingClientRect(),
+        (dstRect) => {
+          // Kick off the merge animation.
+          window.requestAnimationFrame(() => {
+            ghosts.forEach((g, i) => {
+              const sr = srcRects[i];
+              if (!sr) return;
 
-      // Kick off the merge animation.
-      window.requestAnimationFrame(() => {
-        ghosts.forEach((g, i) => {
-          const sr = srcRects[i];
-          if (!sr) return;
+              const dx = dstRect.left - sr.left;
+              const dy = dstRect.top - sr.top;
+              const sx = dstRect.width / sr.width;
+              const sy = dstRect.height / sr.height;
 
-          const dx = dstRect.left - sr.left;
-          const dy = dstRect.top - sr.top;
-          const sx = dstRect.width / sr.width;
-          const sy = dstRect.height / sr.height;
+              g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+            });
+          });
 
-          g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
-        });
-      });
+          // Fade labels out before they start overlapping near the end.
+          window.setTimeout(() => {
+            ghosts.forEach((g) => g.classList.remove('show-label'));
+          }, TIME.MERGE_LABEL_HIDE);
 
-      // Fade labels out before they start overlapping near the end.
-      window.setTimeout(() => {
-        ghosts.forEach((g) => g.classList.remove('show-label'));
-      }, TIME.MERGE_LABEL_HIDE);
+          // Crossfade ghosts out while language buttons fade/slide in.
+          window.setTimeout(() => {
+            ghosts.forEach((g) => g.classList.add('fade-out'));
+            els.body.classList.remove('merging-mode');
+            els.body.classList.add('lang-reveal');
+          }, TIME.MERGE_CROSSFADE);
 
-      // Crossfade ghosts out while language buttons fade/slide in.
-      window.setTimeout(() => {
-        ghosts.forEach((g) => g.classList.add('fade-out'));
-        els.body.classList.remove('merging-mode');
-        els.body.classList.add('lang-reveal');
-      }, TIME.MERGE_CROSSFADE);
+          // Cleanup.
+          window.setTimeout(() => {
+            ghosts.forEach((g) => g.remove());
+            els.diffs.classList.remove('is-prep');
+            els.body.dataset.lang = '';
+            state.isAnimating = false;
+          }, TIME.MERGE_CLEANUP);
 
-      // Cleanup.
-      window.setTimeout(() => {
-        ghosts.forEach((g) => g.remove());
-        els.diffs.classList.remove('is-prep');
-        els.body.dataset.lang = '';
-        state.isAnimating = false;
-      }, TIME.MERGE_CLEANUP);
-
-      // Remove reveal class after it plays.
-      window.setTimeout(() => {
-        els.body.classList.remove('lang-reveal');
-      }, TIME.MERGE_REVEAL_CLEANUP);
+          // Remove reveal class after it plays.
+          window.setTimeout(() => {
+            els.body.classList.remove('lang-reveal');
+          }, TIME.MERGE_REVEAL_CLEANUP);
+        }
+      );
     });
   }
 
@@ -318,11 +629,90 @@
   }
 
   // -----------------------------
+  // Game pick overlay
+  // -----------------------------
+
+  /**
+   * The game pick overlay exists in the DOM from the start, but is hidden.
+   * We must use the HTML `hidden` attribute to prevent a pre-CSS flash on hard
+   * refresh. When opening, we remove `hidden` and fade in with the `.show` class.
+   */
+  function isGamePickOpen() {
+    return !!(els.gamePickOverlay && !els.gamePickOverlay.hidden);
+  }
+
+  /**
+   * Open the mini-game selection overlay.
+   * @param {string} diff
+   */
+  function openGamePick(diff) {
+    // If the overlay is missing for any reason, fall back to the original behavior.
+    if (!els.gamePickOverlay) {
+      const lang = els.body.dataset.lang || 'ja';
+      const next = `./bingo.html?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff || 'normal')}`;
+      navigateTo(next);
+      return;
+    }
+
+    state.selectedLang = els.body.dataset.lang || 'ja';
+    state.selectedDiff = diff || 'normal';
+
+    // Ensure it is measurable/visible in the render tree before we fade in.
+    els.gamePickOverlay.hidden = false;
+    els.gamePickOverlay.setAttribute('aria-hidden', 'false');
+
+    // Next frame: add `.show` so CSS can fade it in.
+    window.requestAnimationFrame(() => {
+      if (els.gamePickOverlay) els.gamePickOverlay.classList.add('show');
+    });
+  }
+
+  /**
+   * Close the mini-game selection overlay.
+   * @param {{immediate?: boolean}} [opts]
+   */
+  function closeGamePick(opts) {
+    if (!els.gamePickOverlay) return;
+
+    const immediate = !!(opts && opts.immediate);
+    els.gamePickOverlay.classList.remove('show');
+    els.gamePickOverlay.setAttribute('aria-hidden', 'true');
+
+    if (immediate) {
+      els.gamePickOverlay.hidden = true;
+      return;
+    }
+
+    // Match the CSS fade-out duration (180ms). We add a small buffer.
+    window.setTimeout(() => {
+      if (els.gamePickOverlay) els.gamePickOverlay.hidden = true;
+    }, 220);
+  }
+
+  /**
+   * Navigate to the selected mini-game with the current lang/diff params.
+   * @param {string} gameId
+   */
+  function navigateToMiniGame(gameId) {
+    const lang = state.selectedLang || els.body.dataset.lang || 'ja';
+    const diff = state.selectedDiff || 'normal';
+
+    const page = gameId === 'acidrain' ? 'acidrain.html' : 'bingo.html';
+    const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
+    navigateTo(next);
+  }
+
+  // -----------------------------
   // Event wiring
   // -----------------------------
 
   if (els.backBtn) {
     els.backBtn.addEventListener('click', () => {
+      // If the game selection overlay is open, back closes only that layer.
+      if (isGamePickOpen()) {
+        closeGamePick();
+        return;
+      }
       if (els.body.classList.contains('difficulty-mode')) {
         exitDifficulty();
         return;
@@ -338,11 +728,20 @@
   $$('.diff-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const diff = btn.dataset.diff || '';
-      const lang = els.body.dataset.lang || '';
-      const next = `./bingo.html?lang=${encodeURIComponent(lang || 'ja')}&diff=${encodeURIComponent(diff || 'normal')}`;
-      navigateTo(next);
+      openGamePick(diff);
     });
   });
+
+  $$('.pick-game-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const gameId = btn.dataset.game || 'bingo';
+      navigateToMiniGame(gameId);
+    });
+  });
+
+  if (els.gamePickCancel) {
+    els.gamePickCancel.addEventListener('click', () => closeGamePick());
+  }
 
   // Prevent orphaned timers when the page is backgrounded or navigated away.
   window.addEventListener('pagehide', clearToastTimer);

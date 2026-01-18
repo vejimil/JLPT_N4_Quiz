@@ -40,6 +40,17 @@
       --timer-w: clamp(260px, 72vw, 720px);
       --timer-ar-w: 918;  /* TIMEISRUNNINGOUT asset size */
       --timer-ar-h: 60;
+
+      /* Shared typography (Bingo / Acid Rain) */
+      --txt-color: rgba(255,255,255,0.95);
+      --txt-shadow: 0 2px 0 rgba(0,0,0,0.65), 0 0 6px rgba(0,0,0,0.35);
+      --txt-weight: 900;
+      --txt-letter: -0.2px;
+
+      /* Overlay (match Acid Rain) */
+      --overlay-title-h: clamp(44px, 7vw, 96px);
+      --overlay-btn-w: clamp(140px, 22vw, 220px);
+      --overlay-btn-h: clamp(44px, 7vw, 70px);
     }
 
     html, body{
@@ -257,11 +268,10 @@
       justify-content: center;
 
       text-align: center;
-      font-weight: 800;
-      color: rgba(255,255,255,0.92);
-      text-shadow:
-        0 2px 0 rgba(0,0,0,0.6),
-        0 0 6px rgba(0,0,0,0.35);
+      font-weight: var(--txt-weight);
+      color: var(--txt-color);
+      letter-spacing: var(--txt-letter);
+      text-shadow: var(--txt-shadow);
 
       font-size: clamp(14px, 1.55vw, 22px);
       line-height: 1.15;
@@ -320,11 +330,10 @@
       justify-content: center;
 
       text-align: center;
-      font-weight: 900;
-      color: rgba(255,255,255,0.95);
-      text-shadow:
-        0 2px 0 rgba(0,0,0,0.65),
-        0 0 6px rgba(0,0,0,0.35);
+      font-weight: var(--txt-weight);
+      color: var(--txt-color);
+      letter-spacing: var(--txt-letter);
+      text-shadow: var(--txt-shadow);
 
       font-size: clamp(14px, 1.35vw, 18px);
       line-height: 1.15;
@@ -423,106 +432,82 @@
       height: 100%;
     }
 
-    /* Overlay */
+    /* Overlay (match Acid Rain) */
     .overlay{
-      position: absolute;
+      position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.55);
       display: none;
       align-items: center;
       justify-content: center;
-      pointer-events: auto;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(2px);
       z-index: 50;
+      pointer-events: auto;
     }
-
     .overlay.show{ display: flex; }
 
-    /* Asset-based overlay window (panel image + title + text-only buttons) */
-    .overlay-card{
-      position: relative;
-      width: min(92vw, 820px);
-      max-width: 92vw;
-      pointer-events: none; /* enable only on buttons */
-    }
-
-    .overlay-panel{
-      display: block;
-      width: 100%;
-      height: auto;
-      image-rendering: pixelated;
+    .overlay-inner{
+      width: min(92vw, 720px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(14px, 2.8vw, 28px);
+      pointer-events: none;
     }
 
     .overlay-title-img{
-      position: absolute;
-      left: 50%;
-      top: 28%;
-      transform: translate(-50%, -50%);
-      height: clamp(34px, 6.2vw, 78px);
+      height: var(--overlay-title-h);
       width: auto;
-      max-width: 82%;
-      pointer-events: none;
-    }
-
-    /* smaller title for gameover/timeup */
-    #overlay[data-state="gameover"] .overlay-title-img,
-    #overlay[data-state="timeup"] .overlay-title-img{
-      height: clamp(28px, 5.2vw, 60px);
+      max-width: 90vw;
+      object-fit: contain;
     }
 
     .overlay-title-text{
-      position: absolute;
-      left: 50%;
-      top: 28%;
-      transform: translate(-50%, -50%);
-      font-weight: 900;
-      letter-spacing: 1px;
-      color: #fff;
-      font-size: clamp(18px, 3.8vw, 34px);
-      text-shadow: 0 2px 0 rgba(0,0,0,0.35);
-      pointer-events: none;
       display: none;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+      color: #fff;
+      text-shadow: 0 2px 0 rgba(0,0,0,0.35);
       text-align: center;
-      width: 90%;
+      font-size: clamp(22px, 5vw, 44px);
+      line-height: 1.1;
     }
 
     .overlay-actions{
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: clamp(22px, 7.2vw, 54px);
-      padding: 0 clamp(28px, 8vw, 72px);
       display: flex;
-      justify-content: space-between;
+      gap: clamp(14px, 2.8vw, 28px);
+      justify-content: center;
       align-items: center;
-      gap: clamp(18px, 6vw, 60px);
-      pointer-events: none; /* children enable */
-      box-sizing: border-box;
+      width: 100%;
+      pointer-events: none;
     }
 
     .overlay-btn{
-      width: auto;
-      height: auto;
-      padding: 0;
-      background: transparent;
+      width: var(--overlay-btn-w);
+      height: var(--overlay-btn-h);
       pointer-events: auto;
     }
 
-    /* Make overlay buttons text-only (override shared absolute centering) */
-    .overlay-btn .label-img{
-      position: static;
-      left: auto;
-      top: auto;
-      transform: none;
-      display: block;
-      height: clamp(24px, 5vw, 46px);
-      width: auto;
-      max-width: 40vw;
+    .overlay-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      filter: drop-shadow(0 2px 0 rgba(0,0,0,0.25));
     }
 
-    /* On very small screens, keep buttons readable without spilling */
+    .overlay-btn .label-img{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      height: 52%;
+      max-width: 80%;
+    }
+
     @media (max-width: 420px){
-      .overlay-actions{ padding: 0 22px; }
-      .overlay-btn .label-img{ max-width: 44vw; }
+      .overlay-actions{ flex-direction: column; }
     }
 
     /* ===== Responsive: stack vertically (NO SCROLL) ===== */
@@ -607,27 +592,25 @@
         </div>
       </div>
 
-      <!-- Overlays -->
-      <div class="overlay" id="overlay" aria-hidden="true">
-        <div class="overlay-card" role="dialog" aria-modal="true" aria-label="Game dialog">
-          <!-- Panel image becomes the popup window (no CSS-made rectangle) -->
-          <img class="overlay-panel" src="assets/Button_Pause.png" alt="" aria-hidden="true" />
+      <!-- Overlays (match Acid Rain) -->
+      <div class="overlay" id="overlay" aria-hidden="true" data-state="pause">
+        <div class="overlay-inner" role="dialog" aria-modal="true" aria-label="Game dialog">
+          <img class="overlay-title-img" id="overlayTitleImg" alt="" />
+          <div class="overlay-title-text" id="overlayTitleText"></div>
 
-          <!-- Title (image-first, text fallback for states that don't have an asset) -->
-          <img id="overlayTitleImg" class="overlay-title-img" src="" alt="" />
-          <div id="overlayTitleText" class="overlay-title-text">Paused</div>
-
-          <!-- Actions: two corners (left/right) like the reference screenshot -->
-          <div class="overlay-actions" aria-label="Overlay actions">
+          <div class="overlay-actions">
             <button class="ui-btn overlay-btn clickable" id="resumeBtn" type="button" aria-label="Resume">
+              <img class="bg-img" src="assets/Button.png" alt="" />
               <img class="label-img" src="assets/RESUME.png" alt="RESUME" />
             </button>
 
             <button class="ui-btn overlay-btn clickable" id="backBtn" type="button" aria-label="Back">
+              <img class="bg-img" src="assets/Button.png" alt="" />
               <img class="label-img" src="assets/BACK.png" alt="BACK" />
             </button>
 
             <button class="ui-btn overlay-btn clickable" id="retryBtn" type="button" aria-label="Retry">
+              <img class="bg-img" src="assets/Button.png" alt="" />
               <img class="label-img" src="assets/RETRY.png" alt="RETRY" />
             </button>
           </div>

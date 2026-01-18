@@ -50,7 +50,6 @@
       <!-- =====================================================
            Language buttons
            - data-lang stores the language code
-           - Currently shows a toast (“Coming soon”)
            ===================================================== -->
       <div class="langs">
         <button class="lang-btn" data-lang="ja" aria-label="Japanese">
@@ -94,8 +93,42 @@
       <div class="toast" id="toast">Coming soon</div>
 
     </div>
+
+    <!-- =========================================================
+         Game pick overlay
+         - Opened AFTER the user selects a difficulty.
+         - Keeps your "image-only UI" rule: the two game entries are
+           represented by their title assets.
+         ========================================================= -->
+    <!--
+      NOTE (anti-flash):
+      Start truly hidden with the boolean `hidden` attribute so the overlay
+      never appears briefly during a hard refresh before CSS loads.
+      JS will remove `hidden` when opening the overlay.
+    -->
+    <div class="menu-overlay" id="gamePickOverlay" aria-hidden="true" hidden>
+      <div class="menu-overlay-inner" role="dialog" aria-modal="true" aria-label="Select a mini-game">
+        <div class="menu-overlay-actions" aria-label="Mini-game choices">
+          <button class="pick-game-btn" data-game="bingo" aria-label="Bingo">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/Bingo_Title.png" alt="BINGO" />
+          </button>
+
+          <button class="pick-game-btn" data-game="acidrain" aria-label="Acid Rain">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <img class="label-img" src="assets/ACID RAIN.png" alt="ACID RAIN" />
+          </button>
+        </div>
+
+        <button class="pick-cancel-btn" id="gamePickCancel" aria-label="Back">
+          <img class="bg-img" src="assets/Button.png" alt="" />
+          <img class="label-img" src="assets/BACK.png" alt="BACK" />
+        </button>
+      </div>
+    </div>
+
   </div>
+
   <script src="./game.js"></script>
 </body>
 </html>
-

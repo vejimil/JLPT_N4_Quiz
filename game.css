@@ -140,7 +140,9 @@
     .pix-btn,
     .lang-btn,
     .diff-btn,
-    .ghost-btn{
+    .ghost-btn,
+    .pick-game-btn,
+    .pick-cancel-btn{
       border: 0;
       padding: 0;
       background: transparent;
@@ -155,13 +157,110 @@
     /* Press-down effect (also works on mobile taps) */
     .pix-btn:active,
     .lang-btn:active,
-    .diff-btn:active { transform: scale(0.98); }
+    .diff-btn:active,
+    .pick-game-btn:active,
+    .pick-cancel-btn:active { transform: scale(0.98); }
 
     /* Only apply hover zoom where hover exists (desktop mouse) */
     @media (hover:hover) and (pointer:fine){
       .pix-btn:hover,
       .lang-btn:hover,
-      .diff-btn:hover { transform: scale(1.05); }
+      .diff-btn:hover,
+      .pick-game-btn:hover,
+      .pick-cancel-btn:hover { transform: scale(1.05); }
+    }
+
+    /* =========================================================
+       99) Game pick overlay
+       - Hidden by default (and also has the HTML `hidden` attribute to
+         prevent pre-CSS flash on hard refresh).
+       - Shown after a difficulty is selected.
+       ========================================================= */
+
+    /*
+      Keep the HTML boolean `hidden` attribute authoritative.
+      (Author CSS can override the browser's default [hidden]{display:none},
+      so we re-assert it here.)
+    */
+    .menu-overlay[hidden]{
+      display: none !important;
+    }
+
+    /* Hide Difficulty buttons while the game-pick overlay is open */
+    .stage:has(#gamePickOverlay.show) #diffs{
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .menu-overlay{
+      position: absolute;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      /* Dimmer */
+      background: rgba(0, 0, 0, 0.55);
+
+      /* Fade in/out */
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 180ms ease, visibility 0s linear 180ms;
+
+      /* This layer must be clickable */
+      pointer-events: auto;
+    }
+
+    /* When JS opens the overlay */
+    .menu-overlay.show{
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 180ms ease;
+    }
+
+    .menu-overlay-inner{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(20px, 3vw, 34px);
+    }
+
+    .menu-overlay-actions{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(16px, 2.8vw, 28px);
+    }
+
+    .pick-game-btn{
+      width: var(--btn-w);
+      height: var(--btn-h);
+    }
+
+    .pick-cancel-btn{
+      width: var(--back-w);
+      height: var(--back-h);
+    }
+
+    .pick-game-btn .bg-img,
+    .pick-cancel-btn .bg-img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+
+    .pick-game-btn .label-img{
+      height: 52%;
+      max-width: 84%;
+    }
+
+    .pick-cancel-btn .label-img{
+      height: 48%;
+      max-width: 78%;
     }
 
     /* =========================================================
@@ -189,7 +288,9 @@
     .pix-btn .label-img,
     .lang-btn .label-img,
     .diff-btn .label-img,
-    .ghost-btn .label-img{
+    .ghost-btn .label-img,
+    .pick-game-btn .label-img,
+    .pick-cancel-btn .label-img{
       position: absolute;
       left: 50%;
       top: 50%;
@@ -269,8 +370,12 @@
 
     /* Smooth re-appearance after merge-back */
     @keyframes langReveal{
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
+      /* IMPORTANT:
+         Keep positions identical during the ghost->real crossfade.
+         If we animate translateY here, the real buttons start offset,
+         causing a visible “pop” right when the ghosts fade out. */
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     body.lang-reveal .langs{ pointer-events: none; }
     body.lang-reveal .langs .lang-btn{

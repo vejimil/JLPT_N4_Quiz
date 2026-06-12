@@ -3,24 +3,24 @@
 'use strict';
 
 // ===== 언어 설정 =====
+// title은 함수: 일본어는 선택된 JLPT 레벨을 반영해 동적으로 만든다.
 const LANGS = {
   ja: {
     code: "ja",
-    title: "JLPT N4 일본어 단어 퀴즈",
+    title: () => `JLPT ${JA_LEVEL_LABELS[currentJaLevel]} 단어 퀴즈`,
     characterName: "니혼고래 🐋",
     initialMessage: "일본어 바다로 떠나볼까?",
-    storageKey: "nihongorae-jlpt-n4-v1",
   },
   fr: {
     code: "fr",
-    title: "프랑스어 단어 퀴즈",
+    title: () => "프랑스어 단어 퀴즈",
     characterName: "프랑새 🐦",
     initialMessage: "프랑스어 숲으로 날아가볼까?",
     storageKey: "prangsae-fr-v1",
   },
   es: {
     code: "es",
-    title: "스페인어 단어 퀴즈",
+    title: () => "스페인어 단어 퀴즈",
     characterName: "에스파냐옹 🐱",
     initialMessage: "스페인어 산으로 뛰어가볼까?",
     storageKey: "espanyao-es-v1",
@@ -29,6 +29,40 @@ const LANGS = {
 
 // 현재 선택된 언어 (기본값: 일본어)
 let currentLang = "ja";
+
+// ===== 일본어 JLPT 레벨 =====
+let currentJaLevel = "n5n4";    // "n5n4" | "n3" | "n2" | "n1"
+let includeLowerLevels = false; // 하위 레벨 단어 포함(누적 모드)
+
+const JA_LEVEL_ORDER = ["n5n4", "n3", "n2", "n1"];
+
+const JA_LEVEL_LABELS = {
+  n5n4: "N5·N4",
+  n3: "N3",
+  n2: "N2",
+  n1: "N1",
+};
+
+// 레벨 → 단어장 배열 매핑 (레벨 추가 시 여기만 늘린다)
+const JA_LEVEL_VOCABS = {
+  n5n4: () => (typeof VOCAB !== "undefined" && Array.isArray(VOCAB) ? VOCAB : []),
+  n3: () => (typeof VOCAB_N3 !== "undefined" && Array.isArray(VOCAB_N3) ? VOCAB_N3 : []),
+  n2: () => (typeof VOCAB_N2 !== "undefined" && Array.isArray(VOCAB_N2) ? VOCAB_N2 : []),
+  n1: () => (typeof VOCAB_N1 !== "undefined" && Array.isArray(VOCAB_N1) ? VOCAB_N1 : []),
+};
+
+function normalizeJaLevel(level) {
+  return JA_LEVEL_ORDER.includes(level) ? level : "n5n4";
+}
+
+// ===== 일본어 저장 키 =====
+// 경험치(XP)는 레벨 공용 키 하나, 오답노트는 레벨별 키로 분리
+const JA_XP_KEY = "nihongorae-ja-xp-v1";
+const JA_LEGACY_KEY = "nihongorae-jlpt-n4-v1"; // 구버전 통합 키 (마이그레이션 전용)
+
+function getJaWrongKey(level) {
+  return `nihongorae-jlpt-${normalizeJaLevel(level)}-v1`;
+}
 
 // ===== 상태 =====
 let state = {
@@ -43,7 +77,8 @@ let state = {
   thisExamWrong: [],
 };
 
-// ===== 헬퍼: 현재 언어의 저장 키 =====
+// ===== 헬퍼: 현재 언어의 저장 키 (프랑스어/스페인어 전용) =====
+// 일본어는 JA_XP_KEY + getJaWrongKey()로 분리 저장한다.
 function getStorageKey() {
   const cfg = LANGS[currentLang] || LANGS.ja;
   return cfg.storageKey;
@@ -67,18 +102,28 @@ function getCurrentVocab() {
     return [];
   }
 
-  // 기본: 일본어 VOCAB 사용
-  if (typeof VOCAB !== "undefined" && Array.isArray(VOCAB)) {
-    return VOCAB;
-  }
-  return [];
+  // 기본: 일본어 — 선택 레벨(+누적 체크 시 하위 레벨 합산) 단어장
+  return getJaVocab(currentJaLevel, includeLowerLevels);
+}
+
+// 일본어 레벨별 단어장. cumulative가 true면 하위 레벨을 모두 합쳐 반환.
+// (id가 레벨별 고정 범위라 합쳐도 전역 유일함이 보장됨)
+function getJaVocab(level, cumulative) {
+  const lv = normalizeJaLevel(level);
+  if (!cumulative) return JA_LEVEL_VOCABS[lv]();
+  const idx = JA_LEVEL_ORDER.indexOf(lv);
+  return JA_LEVEL_ORDER.slice(0, idx + 1).reduce(
+    (acc, l) => acc.concat(JA_LEVEL_VOCABS[l]()),
+    []
+  );
 }
 
 
 let globalStats = {
   totalQuestions: 0,
   totalCorrect: 0,
-  wrongWordIds: [], // 전체 오답 단어 id 모음
+  // 오답노트 — Phase 4(Leitner) 호환 구조. Phase 1에서는 box 항상 1, lastSeen은 null.
+  wrongWords: [], // [{ id, box, lastSeen }]
 };
 
 // ===== Small shared helpers (keep behavior, reduce repetition) =====
@@ -102,22 +147,87 @@ function uniq(arr){
 }
 
 // ===== 로컬스토리지 =====
+
+// 저장된 오답노트 항목을 안전한 형태로 정리 ({ id, box, lastSeen }만 유지)
+function sanitizeWrongWords(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((w) => w && typeof w.id === "number")
+    .map((w) => ({
+      id: w.id,
+      box: Number(w.box) >= 1 ? Number(w.box) : 1,
+      lastSeen: w.lastSeen != null ? w.lastSeen : null,
+    }));
+}
+
+// id 배열(구버전/프랑스어/스페인어 형식) → Leitner 호환 오답노트 형태
+function wrongWordsFromIds(ids) {
+  return uniq(Array.isArray(ids) ? ids : []).map((id) => ({
+    id,
+    box: 1,
+    lastSeen: null,
+  }));
+}
+
+// 구버전 일본어 통합 키(nihongorae-jlpt-n4-v1) → XP 키 + n5n4 오답노트 키 1회 복사.
+// 새 키가 이미 있으면 건드리지 않는다 (멱등). 구 키는 보존.
+function migrateLegacyJaStats() {
+  try {
+    const raw = localStorage.getItem(JA_LEGACY_KEY);
+    if (!raw) return;
+    const legacy = safeJsonParse(raw, null);
+    if (!legacy || typeof legacy !== "object") return;
+
+    if (localStorage.getItem(JA_XP_KEY) === null) {
+      localStorage.setItem(
+        JA_XP_KEY,
+        JSON.stringify({
+          totalQuestions: Number(legacy.totalQuestions) || 0,
+          totalCorrect: Number(legacy.totalCorrect) || 0,
+        })
+      );
+    }
+
+    const wrongKey = getJaWrongKey("n5n4");
+    if (localStorage.getItem(wrongKey) === null) {
+      localStorage.setItem(
+        wrongKey,
+        JSON.stringify({ wrongWords: wrongWordsFromIds(legacy.wrongWordIds) })
+      );
+    }
+  } catch (e) {
+    console.error("일본어 저장소 마이그레이션 오류", e);
+  }
+}
+
 function loadGlobalStats() {
-  const key = getStorageKey();
-  const base = { totalQuestions: 0, totalCorrect: 0, wrongWordIds: [] };
+  const base = { totalQuestions: 0, totalCorrect: 0, wrongWords: [] };
 
   try {
-    const raw = localStorage.getItem(key);
+    if (currentLang === "ja") {
+      // 일본어: XP는 레벨 공용 키, 오답노트는 현재 레벨 키에서 읽는다.
+      const xp = safeJsonParse(localStorage.getItem(JA_XP_KEY), null) || {};
+      const note =
+        safeJsonParse(localStorage.getItem(getJaWrongKey(currentJaLevel)), null) || {};
+      globalStats = {
+        totalQuestions: Number(xp.totalQuestions) || 0,
+        totalCorrect: Number(xp.totalCorrect) || 0,
+        wrongWords: sanitizeWrongWords(note.wrongWords),
+      };
+      return;
+    }
+
+    // 프랑스어/스페인어: 기존 통합 키·구조 유지 (wrongWordIds 배열)
+    const raw = localStorage.getItem(getStorageKey());
     if (!raw) {
       globalStats = { ...base };
       return;
     }
-
-    const parsed = safeJsonParse(raw, null);
+    const parsed = safeJsonParse(raw, null) || {};
     globalStats = {
-      ...base,
-      ...(parsed && typeof parsed === 'object' ? parsed : {}),
-      wrongWordIds: parsed && Array.isArray(parsed.wrongWordIds) ? parsed.wrongWordIds : [],
+      totalQuestions: Number(parsed.totalQuestions) || 0,
+      totalCorrect: Number(parsed.totalCorrect) || 0,
+      wrongWords: wrongWordsFromIds(parsed.wrongWordIds),
     };
   } catch (e) {
     console.error('통계 불러오기 오류', e);
@@ -128,8 +238,30 @@ function loadGlobalStats() {
 
 function saveGlobalStats() {
   try {
-    const key = getStorageKey();            // ★ 수정
-    localStorage.setItem(key, JSON.stringify(globalStats));
+    if (currentLang === "ja") {
+      localStorage.setItem(
+        JA_XP_KEY,
+        JSON.stringify({
+          totalQuestions: globalStats.totalQuestions,
+          totalCorrect: globalStats.totalCorrect,
+        })
+      );
+      localStorage.setItem(
+        getJaWrongKey(currentJaLevel),
+        JSON.stringify({ wrongWords: globalStats.wrongWords })
+      );
+      return;
+    }
+
+    // 프랑스어/스페인어: 기존 통합 키·구조 유지
+    localStorage.setItem(
+      getStorageKey(),
+      JSON.stringify({
+        totalQuestions: globalStats.totalQuestions,
+        totalCorrect: globalStats.totalCorrect,
+        wrongWordIds: globalStats.wrongWords.map((w) => w.id),
+      })
+    );
   } catch (e) {
     console.error("save stats error", e);
   }
@@ -208,8 +340,8 @@ function shuffleArray(arr) {
 }
 
 function getUniqueWrongWords() {
-  const vocab = getCurrentVocab(); // ★ 현재 언어의 단어 목록
-  const set = new Set(globalStats.wrongWordIds);
+  const vocab = getCurrentVocab(); // ★ 현재 언어(+레벨)의 단어 목록
+  const set = new Set(globalStats.wrongWords.map((w) => w.id));
   return vocab.filter((w) => set.has(w.id));
 }
 
@@ -321,7 +453,8 @@ function buildQuestionForWord(word, mode) {
   }
 
   // --- 오답 보기 생성용 풀 만들기 ---
-  let others = VOCAB.filter((w) => w.id !== word.id);
+  // 보기(오답 선택지)도 출제 풀과 같은 범위(현재 레벨/누적)에서 뽑는다.
+  let others = getCurrentVocab().filter((w) => w.id !== word.id);
 
   // 1) 한자 보기일 때는, jpKanji 가 있는 애들만 보기 후보로 사용 (한자 없음 제거)
   if (poolType === "kanji") {
@@ -562,7 +695,7 @@ function generateExamQuestionsFr(count, pool) {
 
 
 function generateExamQuestions(_modeIgnored, count, wordPool) {
-  const pool = wordPool || VOCAB;
+  const pool = wordPool || getCurrentVocab();
   const shuffled = shuffleArray(pool);
   const limited = shuffled.slice(0, Math.min(count, shuffled.length));
 
@@ -597,6 +730,16 @@ function showPanel(panelId) {
   });
 }
 
+// ===== 타이틀 갱신 (h1 + document.title, 일본어는 레벨 반영) =====
+function applyAppTitle() {
+  const cfg = LANGS[currentLang] || LANGS.ja;
+  const title = cfg.title();
+
+  const titleEl = byId("app-title");
+  if (titleEl) titleEl.textContent = title;
+  document.title = `${title} | ${cfg.characterName}`;
+}
+
 // ===== 언어 변경 =====
 function setLanguage(lang) {
   if (!LANGS[lang]) lang = "ja";
@@ -607,15 +750,32 @@ function setLanguage(lang) {
   const cfg = LANGS[lang];
 
   // 헤더 텍스트 변경
-  const titleEl = document.getElementById("app-title");
   const nameEl = document.getElementById("character-name");
   const msgEl = byId("whale-message");
 
-  if (titleEl) titleEl.textContent = cfg.title;
   if (nameEl) nameEl.textContent = cfg.characterName;
   if (msgEl) msgEl.textContent = cfg.initialMessage;
 
-  // TODO: 나중 단계에서 언어별 통계/오답 불러오기 등을 여기서 처리할 수 있음
+  // 레벨 선택 UI는 일본어일 때만 노출
+  const levelRow = byId("ja-level-row");
+  if (levelRow) levelRow.hidden = lang !== "ja";
+
+  applyAppTitle();
+}
+
+// ===== 일본어 레벨 변경 =====
+function setJaLevel(level) {
+  currentJaLevel = normalizeJaLevel(level);
+
+  document.querySelectorAll(".level-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.level === currentJaLevel);
+  });
+
+  applyAppTitle();
+
+  // 레벨별 오답노트를 다시 불러온다 (XP는 일본어 공용 키라 그대로 유지됨)
+  loadGlobalStats();
+  updateCharacterPanel();
 }
 
 // ===== 언어별 시험 생성기 매핑 =====
@@ -713,7 +873,10 @@ function checkAnswer() {
     feedbackEl.classList.remove("correct");
     feedbackEl.classList.add("wrong");
     state.thisExamWrong.push(q.wordId);
-    globalStats.wrongWordIds.push(q.wordId);
+    // 같은 단어는 한 번만 기록 (Phase 1: box 1 고정, Phase 4에서 승급/강등 추가)
+    if (!globalStats.wrongWords.some((w) => w.id === q.wordId)) {
+      globalStats.wrongWords.push({ id: q.wordId, box: 1, lastSeen: null });
+    }
   }
 
   // --- 정답 확인 후, 각 보기 옆에 나머지 정보(한자/히라가나/뜻) 표시 ---
@@ -842,6 +1005,9 @@ function startNewExam(fromWrongOnly = false) {
 
 // ===== 초기화 =====
 document.addEventListener("DOMContentLoaded", () => {
+  // 구버전 일본어 통합 키 → 새 키 1회 마이그레이션 (저장 데이터 보존)
+  migrateLegacyJaStats();
+
   // ===== 언어 버튼 연결 =====
   const langButtons = document.querySelectorAll(".lang-btn");
 
@@ -865,6 +1031,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // ===== 일본어 레벨 버튼 연결 =====
+  document.querySelectorAll(".level-btn").forEach((btn) => {
+    const level = normalizeJaLevel(btn.dataset.level);
+
+    // 데이터가 없는 레벨은 비활성화 (빈 시험 방지)
+    if (JA_LEVEL_VOCABS[level]().length === 0) {
+      btn.disabled = true;
+    }
+
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      setJaLevel(level);
+    });
+  });
+
+  // ===== 하위 레벨 포함(누적) 체크박스 연결 =====
+  const includeLowerCheckbox = byId("include-lower-levels");
+  if (includeLowerCheckbox) {
+    includeLowerCheckbox.addEventListener("change", () => {
+      includeLowerLevels = includeLowerCheckbox.checked;
+    });
+  }
 
   // 초기 언어 세팅 (기본: 일본어)
   setLanguage("ja");

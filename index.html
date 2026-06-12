@@ -2,13 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>JLPT N4 일본어 단어 퀴즈 | 니혼고래</title>
+  <title>JLPT N5·N4 단어 퀴즈 | 니혼고래 🐋</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="header">
-    <h1 id="app-title">JLPT N4 단어 퀴즈</h1>
+    <h1 id="app-title">JLPT N5·N4 단어 퀴즈</h1>
     <div class="whale-panel">
       <div class="whale-name" id="character-name">니혼고래 🐋</div>
       <div class="whale-level">Lv. <span id="whale-level">1</span></div>
@@ -53,6 +53,24 @@
           </button>
         </div>
         <small class="hint">먼저 퀴즈를 풀 언어를 골라 주세요.</small>
+      </div>
+
+      <!-- JLPT 레벨 선택 (일본어 전용) -->
+      <div class="form-row" id="ja-level-row">
+        <label>JLPT 레벨</label>
+        <div class="level-buttons">
+          <button type="button" class="btn level-btn active" data-level="n5n4">
+            N5·N4 (기초)
+          </button>
+          <button type="button" class="btn level-btn" data-level="n3">N3</button>
+          <button type="button" class="btn level-btn" data-level="n2">N2</button>
+          <button type="button" class="btn level-btn" data-level="n1">N1</button>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="include-lower-levels" />
+          하위 레벨 단어 포함
+        </label>
+        <small class="hint">출제할 레벨을 골라 주세요. 체크하면 하위 레벨 단어도 함께 나와요.</small>
       </div>
 
       <div class="form-row">
@@ -121,11 +139,14 @@
   </main>
 
   <footer class="footer">
-    <small>Made by vejimil · 니혼고래 🐋 & 프랑새 🐦 & 에스파냐옹 🐱 · ver1.1.4</small>
+    <small>Made by vejimil · 니혼고래 🐋 & 프랑새 🐦 & 에스파냐옹 🐱 · ver1.2.0</small>
   </footer>
 
 
   <script src="vocab.js"></script>
+  <script src="vocab-n3.js"></script>
+  <script src="vocab-n2.js"></script>
+  <script src="vocab-n1.js"></script>
   <script src="vocab-fr.js"></script>
   <script src="vocab-es.js"></script>
   <script src="app.js"></script>

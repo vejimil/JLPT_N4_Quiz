@@ -164,6 +164,23 @@ var waitForStableRects =
     Array.from(root.querySelectorAll(selector));
 
   // -----------------------------
+  // JLPT levels (Japanese only)
+  // -----------------------------
+  // Mirror app.js: level -> vocab array. Add levels here only (no new branches).
+  const JA_LEVEL_ORDER = ['n5n4', 'n3', 'n2', 'n1'];
+  const JA_LEVEL_VOCABS = {
+    n5n4: () => (typeof VOCAB !== 'undefined' && Array.isArray(VOCAB) ? VOCAB : []),
+    n3: () => (typeof VOCAB_N3 !== 'undefined' && Array.isArray(VOCAB_N3) ? VOCAB_N3 : []),
+    n2: () => (typeof VOCAB_N2 !== 'undefined' && Array.isArray(VOCAB_N2) ? VOCAB_N2 : []),
+    n1: () => (typeof VOCAB_N1 !== 'undefined' && Array.isArray(VOCAB_N1) ? VOCAB_N1 : []),
+  };
+
+  /** @param {string} level */
+  function normalizeJaLevel(level) {
+    return JA_LEVEL_ORDER.includes(level) ? level : 'n5n4';
+  }
+
+  // -----------------------------
   // Timing constants (ms)
   // -----------------------------
 
@@ -200,6 +217,8 @@ var waitForStableRects =
     toast: $id('toast'),
     animLayer: $id('animLayer'),
     diffs: $id('diffs'),
+    jaLevels: $id('jaLevels'),
+    includeLower: $id('includeLowerLevels'),
     gamePickOverlay: $id('gamePickOverlay'),
     gamePickCancel: $id('gamePickCancel'),
   };
@@ -215,6 +234,10 @@ var waitForStableRects =
     // chooses a mini-game from the game-pick overlay.
     selectedLang: '',
     selectedDiff: '',
+    // JLPT level selection (Japanese only). Passed to the mini-game as
+    // ?level=&cumulative= so the pool is filtered to match the main quiz.
+    selectedLevel: 'n5n4',
+    includeLower: false,
   };
 
   function clearToastTimer() {
@@ -628,6 +651,26 @@ var waitForStableRects =
     window.location.href = url;
   }
 
+  /**
+   * Build a mini-game URL. JLPT level params are added for Japanese only
+   * (French/Spanish have a single pool). Uses the same 4 params the games
+   * normalize: lang / diff / level / cumulative.
+   *
+   * @param {string} page  e.g. 'bingo.html' | 'acidrain.html'
+   * @param {string} lang
+   * @param {string} diff
+   */
+  function buildGameUrl(page, lang, diff) {
+    const params = new URLSearchParams();
+    params.set('lang', lang);
+    params.set('diff', diff || 'normal');
+    if (lang === 'ja') {
+      params.set('level', normalizeJaLevel(state.selectedLevel));
+      params.set('cumulative', state.includeLower ? '1' : '0');
+    }
+    return `./${page}?${params.toString()}`;
+  }
+
   // -----------------------------
   // Game pick overlay
   // -----------------------------
@@ -649,8 +692,7 @@ var waitForStableRects =
     // If the overlay is missing for any reason, fall back to the original behavior.
     if (!els.gamePickOverlay) {
       const lang = els.body.dataset.lang || 'ja';
-      const next = `./bingo.html?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff || 'normal')}`;
-      navigateTo(next);
+      navigateTo(buildGameUrl('bingo.html', lang, diff || 'normal'));
       return;
     }
 
@@ -698,8 +740,7 @@ var waitForStableRects =
     const diff = state.selectedDiff || 'normal';
 
     const page = gameId === 'acidrain' ? 'acidrain.html' : 'bingo.html';
-    const next = `./${page}?lang=${encodeURIComponent(lang)}&diff=${encodeURIComponent(diff)}`;
-    navigateTo(next);
+    navigateTo(buildGameUrl(page, lang, diff));
   }
 
   // -----------------------------
@@ -731,6 +772,39 @@ var waitForStableRects =
       openGamePick(diff);
     });
   });
+
+  // -----------------------------
+  // JLPT level selection wiring (Japanese only)
+  // -----------------------------
+
+  /**
+   * Grey out levels that have no vocabulary yet (§8-3: never start an empty
+   * exam). n5n4 always has data; n3/n2/n1 are disabled until their data lands.
+   */
+  function refreshLevelAvailability() {
+    $$('.ja-level-btn').forEach((btn) => {
+      const lv = normalizeJaLevel(btn.dataset.level || '');
+      const empty = JA_LEVEL_VOCABS[lv]().length === 0;
+      btn.disabled = empty;
+      btn.classList.toggle('is-disabled', empty);
+    });
+  }
+
+  $$('.ja-level-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      state.selectedLevel = normalizeJaLevel(btn.dataset.level || '');
+      $$('.ja-level-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  if (els.includeLower) {
+    els.includeLower.addEventListener('change', () => {
+      state.includeLower = els.includeLower.checked;
+    });
+  }
+
+  refreshLevelAvailability();
 
   $$('.pick-game-btn').forEach((btn) => {
     btn.addEventListener('click', () => {

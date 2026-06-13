@@ -144,18 +144,19 @@ vocab-n1.js     →  신규: const VOCAB_N1 = [...]
 
 ### 4-1. game.html / game.js (허브)
 
-- [ ] 현재 흐름: 언어 선택 → 난이도(EASY/NORMAL/HARD) 모핑 → 게임 페이지로 이동
-- [ ] **일본어 선택 시에만** 레벨 선택 단계 추가 — **방식 A로 확정 (✅)**: 난이도 화면에 레벨 버튼 한 줄(N5·N4 / N3 / N2 / N1) + "하위 레벨 포함" 체크 추가. 모핑 애니메이션 통일(방식 B)은 추후 별도 작업.
-- [ ] 게임 페이지 이동 URL에 파라미터 추가 (game.js:652, 700 부근):
+- [x] 현재 흐름: 언어 선택 → 난이도(EASY/NORMAL/HARD) 모핑 → 게임 페이지로 이동
+- [x] **일본어 선택 시에만** 레벨 선택 단계 추가 — **방식 A로 확정 (✅)**: 난이도 화면에 레벨 버튼 한 줄(N5·N4 / N3 / N2 / N1) + "하위 레벨 포함" 체크 추가. 모핑 애니메이션 통일(방식 B)은 추후 별도 작업.
+  - 레벨 라벨 이미지 에셋이 없어 `Button.png` 배경 + 텍스트 라벨로 렌더(난이도 버튼 위쪽 배치). 표시는 CSS `body.difficulty-mode[data-lang="ja"] .ja-levels`로만 제어(모핑 미적용). 데이터 0개 레벨은 회색 비활성화(`refreshLevelAvailability`).
+- [x] 게임 페이지 이동 URL에 파라미터 추가 (`buildGameUrl`, 일본어일 때만 level/cumulative 부착):
   `bingo.html?lang=ja&diff=normal&level=n3&cumulative=1`
-- [ ] "하위 레벨 포함" 여부도 파라미터로 전달 (`cumulative=0|1`)
+- [x] "하위 레벨 포함" 여부도 파라미터로 전달 (`cumulative=0|1`)
 
 ### 4-2. bingo.js / acidrain.js
 
-- [ ] `qsParam('level', 'n5n4')`, `qsParam('cumulative', '0')` 읽기 + normalize 함수 추가 (기존 `normalizeLang`/`normalizeDiff` 패턴, bingo.js:43, acidrain.js:63 참고)
-- [ ] `getPairs(lang)` → `getPairs(lang, level, cumulative)`로 확장 (bingo.js:102, acidrain.js:115): 일본어일 때 레벨에 맞는 배열(들)에서 pool 구성
-- [ ] 뒤로가기/재시작 시 URL 파라미터 정리 로직에 `level`, `cumulative`도 추가 (bingo.js:737~738, acidrain.js:825 부근에서 `lang`/`diff` 지우는 곳)
-- [ ] `bingo.html`, `acidrain.html`, `game.html`에 `vocab-n3.js`, `vocab-n2.js`, `vocab-n1.js` 스크립트 추가
+- [x] `qsParam('level', 'n5n4')`, `qsParam('cumulative', '0')` 읽기 + normalize 함수 추가 (`normalizeJaLevel`/`normalizeCumulative`, 기존 `normalizeLang`/`normalizeDiff` 패턴)
+- [x] `getPairs(lang)` → `getPairs(lang, level, cumulative)`로 확장: 일본어일 때 `getJaVocab(level, cumulative)`로 레벨 배열(들)에서 pool 구성 (출제·오답 보기 풀 동일 범위)
+- [x] 뒤로가기/재시작 시 URL 파라미터 정리 로직에 `level`, `cumulative`도 추가 (back 버튼에서 `lang`/`diff` 지우는 곳)
+- [x] `bingo.html`, `acidrain.html`, `game.html`에 `vocab-n3.js`, `vocab-n2.js`, `vocab-n1.js` 스크립트 추가 (game.html은 레벨 비활성화 판정을 위해 `vocab.js`도 함께 로드)
 
 ---
 

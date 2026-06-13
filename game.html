@@ -69,6 +69,39 @@
       </div>
 
       <!-- =====================================================
+           JLPT level selection (Japanese only, difficulty screen)
+           - Phase 2: level row above the difficulty buttons.
+           - No level label image assets exist, so labels are text
+             overlaid on the shared Button.png background.
+           - Visibility is controlled purely by CSS:
+             body.difficulty-mode[data-lang="ja"] #jaLevels.
+           ===================================================== -->
+      <div class="ja-levels" id="jaLevels" aria-hidden="true">
+        <div class="ja-level-row" role="group" aria-label="JLPT 레벨 선택">
+          <button class="ja-level-btn active" data-level="n5n4" type="button">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <span class="ja-level-label">N5·N4</span>
+          </button>
+          <button class="ja-level-btn" data-level="n3" type="button">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <span class="ja-level-label">N3</span>
+          </button>
+          <button class="ja-level-btn" data-level="n2" type="button">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <span class="ja-level-label">N2</span>
+          </button>
+          <button class="ja-level-btn" data-level="n1" type="button">
+            <img class="bg-img" src="assets/Button.png" alt="" />
+            <span class="ja-level-label">N1</span>
+          </button>
+        </div>
+        <label class="ja-cumulative">
+          <input type="checkbox" id="includeLowerLevels" />
+          <span>하위 레벨 포함</span>
+        </label>
+      </div>
+
+      <!-- =====================================================
            Difficulty buttons (hidden until a language is chosen)
            - Uses EASY.png / NORMAL.png / HARD.png assets
            ===================================================== -->
@@ -129,6 +162,11 @@
 
   </div>
 
+  <!-- vocab sources (needed to grey-out levels that have no data yet) -->
+  <script src="./vocab.js"></script>
+  <script src="./vocab-n3.js"></script>
+  <script src="./vocab-n2.js"></script>
+  <script src="./vocab-n1.js"></script>
   <script src="./game.js"></script>
 </body>
 </html>

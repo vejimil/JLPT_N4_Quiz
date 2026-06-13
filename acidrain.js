@@ -75,6 +75,37 @@
     return 'normal';
   }
 
+  // JLPT level (Japanese only). Mirror app.js: level -> vocab array.
+  const JA_LEVEL_ORDER = ['n5n4', 'n3', 'n2', 'n1'];
+  const JA_LEVEL_VOCABS = {
+    n5n4: () => (typeof VOCAB !== 'undefined' ? VOCAB : (globalThis.VOCAB || [])),
+    n3: () => (typeof VOCAB_N3 !== 'undefined' ? VOCAB_N3 : (globalThis.VOCAB_N3 || [])),
+    n2: () => (typeof VOCAB_N2 !== 'undefined' ? VOCAB_N2 : (globalThis.VOCAB_N2 || [])),
+    n1: () => (typeof VOCAB_N1 !== 'undefined' ? VOCAB_N1 : (globalThis.VOCAB_N1 || [])),
+  };
+
+  function normalizeJaLevel(level){
+    const v = (level || '').toLowerCase();
+    return JA_LEVEL_ORDER.includes(v) ? v : 'n5n4';
+  }
+
+  function normalizeCumulative(c){
+    const v = String(c == null ? '' : c).toLowerCase();
+    return v === '1' || v === 'true';
+  }
+
+  // Japanese vocab for a level; cumulative folds in all lower levels.
+  // (ids are level-scoped ranges, so concatenation stays globally unique.)
+  function getJaVocab(level, cumulative){
+    const lv = normalizeJaLevel(level);
+    if (!cumulative) return JA_LEVEL_VOCABS[lv]() || [];
+    const idx = JA_LEVEL_ORDER.indexOf(lv);
+    return JA_LEVEL_ORDER.slice(0, idx + 1).reduce(
+      (acc, l) => acc.concat(JA_LEVEL_VOCABS[l]() || []),
+      []
+    );
+  }
+
   // -----------------------------
   // Assets (keep paths consistent with the rest of your project)
   // -----------------------------
@@ -112,7 +143,7 @@
   // Vocabulary adapter (matches Bingo’s data model)
   // -----------------------------
 
-  function getPairs(lang){
+  function getPairs(lang, level, cumulative){
     if (lang === 'fr') {
       const SRC = (typeof VOCAB_FR !== 'undefined') ? VOCAB_FR : (globalThis.VOCAB_FR || []);
       const pool = (SRC || []).filter(v => v && v.fr && v.en);
@@ -124,8 +155,9 @@
       return pool.map(v => ({ id: v.id, q1: String(v.es), q2: '', a: String(v.en) }));
     }
 
-    // Default: Japanese (kanji/kana -> Korean meaning)
-    const SRC = (typeof VOCAB !== 'undefined') ? VOCAB : (globalThis.VOCAB || []);
+    // Default: Japanese (kanji/kana -> Korean meaning).
+    // Pool is the selected JLPT level (+ lower levels when cumulative).
+    const SRC = getJaVocab(level, cumulative);
     const pool = (SRC || []).filter(v => v && v.jpKana && v.krMeaning);
 
     return pool.map(v => {
@@ -227,6 +259,8 @@
 
   const lang = normalizeLang(qsParam('lang', 'ja'));
   const diff = normalizeDiff(qsParam('diff', 'normal'));
+  const jaLevel = normalizeJaLevel(qsParam('level', 'n5n4'));
+  const cumulative = normalizeCumulative(qsParam('cumulative', '0'));
   const cfg = DIFF[diff] || DIFF.normal;
 
   const root = document.documentElement;
@@ -440,7 +474,7 @@
   function startNewRound(){
     roundHits = 0;
 
-    const pairs = getPairs(lang);
+    const pairs = getPairs(lang, jaLevel, cumulative);
     round = buildRound(pairs, cfg.roundGoal, cfg.choices);
 
     // Clear active drops to avoid unfair leftovers when direction flips.
@@ -823,6 +857,8 @@
       url.pathname = url.pathname.replace(/acidrain\.html$/i, 'game.html');
       url.searchParams.delete('diff');
       url.searchParams.delete('lang');
+      url.searchParams.delete('level');
+      url.searchParams.delete('cumulative');
       window.location.href = url.toString();
     });
 

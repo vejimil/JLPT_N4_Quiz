@@ -1,0 +1,4 @@
+# Phase 3 데이터 파이프라인 중간 산출물 (tools/*.mjs 스크립트로 재생성 가능)
+# - chunks/ gen/ 등 Codex 원본 응답·청크·후보·리포트
+# 최종 산출물은 vocab-n3/n2/n1.js (레포에 커밋)
+tools/out/

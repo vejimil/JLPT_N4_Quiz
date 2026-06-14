@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "jpKana": { "type": "string" },
+          "jpKanji": { "type": "string" },
+          "krMeaning": { "type": "string" },
+          "example": { "type": "string" },
+          "pos": { "type": "string", "enum": ["na", "other"] }
+        },
+        "required": ["id", "jpKana", "jpKanji", "krMeaning", "example", "pos"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["items"],
+  "additionalProperties": false
+}

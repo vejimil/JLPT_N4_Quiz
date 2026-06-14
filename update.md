@@ -180,10 +180,13 @@ vocab-n1.js     →  신규: const VOCAB_N1 = [...]
 
 > **진행 상황 (2026-06)**
 > - 파이프라인 스크립트 `tools/` 구현 완료 (`prepare-source` → `gen-codex`+`prompts/` → `merge-gen` → `validate-vocab` → `review-report`). 상세·소스 URL은 `tools/README.md`.
-> - **N3 완료**: elzup CSV 2,139행 → 중복 제거 후 **2,061단어**(id 10001~12061) → `vocab-n3.js` 확정. 검증 0 errors / 21 warnings(짧은 예문). footer ver1.3.1(데이터 patch).
->   - 기존 15개 샘플(id 10001~10015)은 placeholder였고 전체 데이터로 교체됨(사용자 확인).
->   - **계획 대비 차이**: §2-3의 *Codex 자체 검수(3단계)*는 생략하고 결정적 검증 스크립트 + Claude 전수 교차검수로 품질 게이트를 대체(사용량 절약). 사람 확인 리포트는 `tools/out/n3-review.md`(네이버 링크 포함).
-> - 다음: N2(`node tools/prepare-source.mjs <n2.csv> n2 20001` …), 이어 N1.
+> - **접사·조수사(～ 표기) 제외 결정** (사용자 확인): 단독 단어가 아니므로 단어→뜻 퀴즈에서 뺀다. `prepare-source`가 ～ 항목을 자동 제외. (語形成 모드는 Phase 4 backlog)
+> - **N3 완료**: elzup CSV 2,139행 → 중복·접사 제거 후 **2,058단어**(id 10001~12061, 결번 일부) → `vocab-n3.js` 확정. 검증 0 errors / 21 warnings(짧은 예문).
+> - **N2 완료**: elzup CSV 1,747행 → 중복·접사(165개) 제거 후 **1,555단어**(id 20001~21556, ×기호 1건 제거 결번) → `vocab-n2.js` 확정. 검증 0 errors / 3 warnings.
+>   - 기존 15개 샘플(N3 10001~10015 / N2 20001~20015)은 placeholder였고 전체 데이터로 교체됨(사용자 확인).
+>   - **계획 대비 차이**: §2-3의 *Codex 자체 검수(3단계)*는 생략하고 결정적 검증 스크립트 + Claude 전수 교차검수로 품질 게이트를 대체(사용량 절약). 사람 확인 리포트는 `tools/out/<level>-review.md`(네이버 링크 포함).
+> - footer ver1.3.2 (N3·N2 데이터 patch).
+> - 다음: **N1**(`node tools/prepare-source.mjs <n1.csv> n1 30001` …).
 
 ### Phase 4 — 출제 방식 강화 (✅ 채택 확정: 1·2·3번)
 

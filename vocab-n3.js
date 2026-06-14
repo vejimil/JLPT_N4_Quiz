@@ -1,6 +1,6 @@
 // vocab-n3.js — JLPT N3 단어장 (Codex 생성 → 검수 파이프라인 산출물)
 // id 범위: 10001~19999 (배포된 id는 변경·재사용 금지)
-// 생성 청크 42개 병합, 총 2061개
+// 생성 청크 42개 병합, 총 2058개
 
 const VOCAB_N3 = [
   {
@@ -8884,14 +8884,6 @@ const VOCAB_N3 = [
     example: "りんごを【四】こ買います。",
   },
   {
-    id: 11111,
-    jpKana: "らい～",
-    jpKanji: "来",
-    krMeaning: "다음. 내",
-    note: "",
-    example: "【来】週、会いましょう。",
-  },
-  {
     id: 11112,
     jpKana: "ライター",
     jpKanji: "",
@@ -9594,14 +9586,6 @@ const VOCAB_N3 = [
     krMeaning: "관. 파이프. 대롱",
     note: "",
     example: "水が【管】を通ります。",
-  },
-  {
-    id: 11200,
-    jpKana: "かん",
-    jpKanji: "～観",
-    krMeaning: "관. 견해. 관점",
-    note: "",
-    example: "彼の人生【観】を聞きます。",
   },
   {
     id: 11201,
@@ -16178,14 +16162,6 @@ const VOCAB_N3 = [
     krMeaning: "폐",
     note: "",
     example: "たばこは【肺】に悪いです。",
-  },
-  {
-    id: 12023,
-    jpKana: "はい",
-    jpKanji: "～敗",
-    krMeaning: "패(패배 수를 세는 말)",
-    note: "",
-    example: "今年はまだ一【敗】です。",
   },
   {
     id: 12024,

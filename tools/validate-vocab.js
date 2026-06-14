@@ -40,6 +40,11 @@ if (!LEVELS[level]) { console.error(`unknown level: ${level}`); process.exit(2);
 
 const SCHEMA = ['id', 'jpKana', 'jpKanji', 'krMeaning', 'note', 'example'];
 
+// だ送り仮名 부사·예외 — 사전형 표제어가 한자·가나 모두 だ로 끝나지만
+// な형용사가 아니라서 뜻이 "-다"로 끝나지 않는다 (未だ=아직, 甚だ=몹시).
+// 아래 kanaDa&&kanjiDa 품사 검사가 이들을 な형용사로 오탐하지 않도록 제외한다.
+const DA_NOT_NA = new Set(['未だ', '甚だ']);
+
 function loadConst(file, name) {
   if (!fs.existsSync(file)) return [];
   const src = fs.readFileSync(file, 'utf8');
@@ -110,7 +115,7 @@ for (const w of list) {
   // 형태만으로 구분이 불가능하므로 이 기계 검사 대상에서 빠지고, Claude 교차검수가 담당한다.)
   const kanaDa = /だ$/u.test(String(w.jpKana || '').trim());
   const kanjiDa = /だ$/u.test(String(w.jpKanji || '').trim());
-  if (kanaDa && kanjiDa && w.krMeaning) {
+  if (kanaDa && kanjiDa && w.krMeaning && !DA_NOT_NA.has(String(w.jpKanji || '').trim())) {
     const senses = String(w.krMeaning).split('. ').map((s) => s.trim()).filter(Boolean);
     const bad = senses.filter((s) => !/다$/u.test(s));
     if (bad.length) E(id, `na-adjective(だ) but meaning not all "-다": ${bad.join(' / ')}`);
